@@ -44,6 +44,7 @@ class UserRandomCodeRequest(DataClassJSONMixin):
     class Config(BaseConfig):
         serialize_by_alias = True
 
+
 @dataclass
 class UserRandomCodeResponse(DataClassJSONMixin):
     """Response from login."""

@@ -9,7 +9,7 @@ import aiohttp
 from aiohttp.client_exceptions import ClientError
 from mashumaro.mixins.json import DataClassJSONMixin
 
-from .model import (
+from .api_model import (
     UserLoginRequest,
     UserLoginResponse,
     UserRandomCodeRequest,
