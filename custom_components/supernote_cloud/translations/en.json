@@ -1,3 +1,19 @@
 {
-    "title": "Supernote Cloud"
+  "title": "Supernote Cloud",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configure Supernote Cloud",
+        "description": "Enter your Supernote cloud credentials (username or phone number) and password.",
+        "data": {
+          "username": "Username or Phone number",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "auth_error": "Authentication error, check username, phone number or password.",
+      "api_error": "Error talking to Supernote Cloud API."
+    }
+  }
 }

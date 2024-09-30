@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 
 from mashumaro import field_options
 from mashumaro.mixins.json import DataClassJSONMixin
+from mashumaro.config import BaseConfig
 
 
 @dataclass
@@ -12,6 +13,9 @@ class QueryUserRequest(DataClassJSONMixin):
 
     country_code: int = field(metadata=field_options(alias="countryCode"))
     account: str
+
+    class Config(BaseConfig):
+        serialize_by_alias = True
 
 
 @dataclass(kw_only=True)
@@ -37,6 +41,8 @@ class UserRandomCodeRequest(DataClassJSONMixin):
     country_code: int = field(metadata=field_options(alias="countryCode"))
     account: str
 
+    class Config(BaseConfig):
+        serialize_by_alias = True
 
 @dataclass
 class UserRandomCodeResponse(DataClassJSONMixin):
@@ -58,6 +64,9 @@ class UserLoginRequest(DataClassJSONMixin):
     login_method: int = field(metadata=field_options(alias="loginMethod"))
     timestamp: str
     language: str
+
+    class Config(BaseConfig):
+        serialize_by_alias = True
 
 
 @dataclass(kw_only=True)
@@ -94,6 +103,9 @@ class FileListRequest(DataClassJSONMixin):
     order: str = "time"
     sequence: str = "desc"
 
+    class Config(BaseConfig):
+        serialize_by_alias = True
+
 
 @dataclass(kw_only=True)
 class FileListResponse(DataClassJSONMixin):
@@ -114,6 +126,9 @@ class GetFileDownloadUrlRequest(DataClassJSONMixin):
 
     file_id: int = field(metadata=field_options(alias="id"))
     file_type: int = field(metadata=field_options(alias="type"), default=0)
+
+    class Config(BaseConfig):
+        serialize_by_alias = True
 
 
 @dataclass(kw_only=True)

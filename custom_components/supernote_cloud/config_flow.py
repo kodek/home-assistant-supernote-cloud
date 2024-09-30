@@ -82,7 +82,9 @@ CONFIG_FLOW = {
                     selector.TextSelectorConfig(),
                 ),
                 vol.Required(CONF_PASSWORD): selector.TextSelector(
-                    selector.TextSelectorConfig(),
+                    selector.TextSelectorConfig(
+                        type=selector.TextSelectorType.PASSWORD
+                    ),
                 ),
             }
         ),
