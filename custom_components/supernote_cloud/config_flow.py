@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, cast
 
 import voluptuous as vol
 
@@ -47,4 +47,4 @@ class SupernoteCloudConfigFlowHandler(SchemaConfigFlowHandler, domain=DOMAIN):
         """Return config entry title."""
         registry = dr.async_get(self.hass)
         device_entry = registry.async_get(options[CONF_DEVICE_ID])
-        return device_entry.name_by_user or device_entry.name
+        return cast(str, device_entry.name_by_user or device_entry.name)

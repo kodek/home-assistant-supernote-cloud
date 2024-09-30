@@ -1,6 +1,6 @@
 """Fixtures for the custom component."""
 
-from collections.abc import Generator
+from collections.abc import Generator, AsyncGenerator
 import logging
 from unittest.mock import patch
 
@@ -41,7 +41,7 @@ async def mock_setup_integration(
     hass: HomeAssistant,
     config_entry: MockConfigEntry,
     platforms: list[Platform],
-) -> None:
+) -> AsyncGenerator[None]:
     """Set up the integration."""
 
     with patch(f"custom_components.{DOMAIN}.PLATFORMS", platforms):
