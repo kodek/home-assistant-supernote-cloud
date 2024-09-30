@@ -18,12 +18,14 @@ from .model import (
     GetFileDownloadUrlRequest,
     GetFileDownloadUrlResponse,
     FileListRequest,
+    QueryUserResponse,
+    QueryUserRequest,
 )
 from .exceptions import ApiException, AuthException
 
 _LOGGER = logging.getLogger(__name__)
 
-API_URL = "https://cloud.supernote.com/api/"
+API_URL = "https://cloud.supernote.com/api"
 HEADERS = {
     "Content-Type": "application/json",
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36",
@@ -51,6 +53,18 @@ class AbstractAuth(ABC):
     @abstractmethod
     async def async_get_access_token(self) -> str:
         """Return a valid access token."""
+
+
+class ConstantAuth(AbstractAuth):
+    """Authentication library."""
+
+    def __init__(self, access_token: str):
+        """Initialize the auth."""
+        self._access_token = access_token
+
+    async def async_get_access_token(self) -> str:
+        """Return a valid access token."""
+        return self._access_token
 
 
 class Client:
@@ -214,6 +228,13 @@ class SupernoteCloudClient:
     def __init__(self, client: Client):
         """Initialize the client."""
         self._client = client
+
+    async def query_user(self, account: str) -> QueryUserResponse:
+        """Query the user."""
+        payload = QueryUserRequest(country_code=1, account=account).to_dict()
+        return await self._client.post_json(
+            "user/query", QueryUserResponse, json=payload
+        )
 
     async def file_list(self, directory: int = 0) -> FileListResponse:
         """Return a list of files."""

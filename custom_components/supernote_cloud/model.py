@@ -7,6 +7,30 @@ from mashumaro.mixins.json import DataClassJSONMixin
 
 
 @dataclass
+class QueryUserRequest(DataClassJSONMixin):
+    """Request to query user."""
+
+    country_code: int = field(metadata=field_options(alias="countryCode"))
+    account: str
+
+
+@dataclass(kw_only=True)
+class QueryUserResponse(DataClassJSONMixin):
+    """Response from query user call."""
+
+    success: bool = True
+    error_code: str = field(metadata=field_options(alias="errorCode"), default="")
+    error_msg: str = field(metadata=field_options(alias="errorMsg"), default="")
+    user_id: str = field(metadata=field_options(alias="userId"))
+    user_name: str = field(metadata=field_options(alias="userName"))
+    country_code: str = field(metadata=field_options(alias="countryCode"))
+    birthday: str = field(metadata=field_options(alias="birthday"))
+    telephone: str = field(metadata=field_options(alias="telephone"), default="")
+    sex: str = ""
+    file_server: str = field(metadata=field_options(alias="fileServer"), default="")
+
+
+@dataclass
 class UserRandomCodeRequest(DataClassJSONMixin):
     """Request to get a random code."""
 
@@ -36,13 +60,13 @@ class UserLoginRequest(DataClassJSONMixin):
     language: str
 
 
-@dataclass
+@dataclass(kw_only=True)
 class UserLoginResponse(DataClassJSONMixin):
     """Response from access token call."""
 
     success: bool
-    error_code: str = field(metadata=field_options(alias="errorCode"))
-    error_msg: str = field_options(alias="errorMsg")
+    error_code: str = field(metadata=field_options(alias="errorCode"), default="")
+    error_msg: str = field(metadata=field_options(alias="errorMsg"), default="")
     token: str
 
 
@@ -71,13 +95,13 @@ class FileListRequest(DataClassJSONMixin):
     sequence: str = "desc"
 
 
-@dataclass
+@dataclass(kw_only=True)
 class FileListResponse(DataClassJSONMixin):
     """Response from file list call."""
 
     success: bool
-    error_code: str = field(metadata=field_options(alias="errorCode"))
-    error_msg: str = field(metadata=field_options(alias="errorMsg"))
+    error_code: str = field(metadata=field_options(alias="errorCode"), default="")
+    error_msg: str = field(metadata=field_options(alias="errorMsg"), default="")
     total: int
     size: int
     pages: int
@@ -92,11 +116,11 @@ class GetFileDownloadUrlRequest(DataClassJSONMixin):
     file_type: int = field(metadata=field_options(alias="type"), default=0)
 
 
-@dataclass
+@dataclass(kw_only=True)
 class GetFileDownloadUrlResponse(DataClassJSONMixin):
     """Response from file download call."""
 
     success: bool
-    error_code: str = field(metadata=field_options(alias="errorCode"))
-    error_msg: str = field(metadata=field_options(alias="errorMsg"))
+    error_code: str = field(metadata=field_options(alias="errorCode"), default="")
+    error_msg: str = field(metadata=field_options(alias="errorMsg"), default="")
     url: str
