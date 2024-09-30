@@ -40,6 +40,9 @@ class UserLoginRequest(DataClassJSONMixin):
 class UserLoginResponse(DataClassJSONMixin):
     """Response from access token call."""
 
+    success: bool
+    error_code: str = field(metadata=field_options(alias="errorCode"))
+    error_msg: str = field_options(alias="errorMsg")
     token: str
 
 
