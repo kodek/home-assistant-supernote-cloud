@@ -6,10 +6,9 @@ from unittest.mock import patch
 
 import pytest
 
-from homeassistant.const import Platform, CONF_DEVICE_ID
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
-from homeassistant.helpers import device_registry as dr
 
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
@@ -53,7 +52,7 @@ async def mock_setup_integration(
 
 @pytest.fixture(name="config_entry")
 async def mock_config_entry(
-    hass: HomeAssistant, zwave_device_id: str
+    hass: HomeAssistant,
 ) -> MockConfigEntry:
     """Fixture to create a configuration entry."""
     config_entry = MockConfigEntry(

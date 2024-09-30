@@ -2,20 +2,32 @@
 
 import pytest
 
-from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr
+from homeassistant.config_entries import ConfigEntryState
 
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
-    async_mock_service,
 )
 
-from custom_components.supernote_cloud.const import (
-    DOMAIN,
-)
 
 
 @pytest.fixture(autouse=True)
 def mock_setup_integration(config_entry: MockConfigEntry) -> None:
     """Setup the integration"""
+
+
+@pytest.mark.usefixtures("setup_integration")
+async def test_init(
+    hass: HomeAssistant,
+    config_entry: MockConfigEntry,
+) -> None:
+    """Setup the integration"""
+
+    assert config_entry.state is ConfigEntryState.LOADED
+
+    assert await hass.config_entries.async_unload(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert (
+        config_entry.state is ConfigEntryState.NOT_LOADED  # type: ignore[comparison-overlap]
+    )
