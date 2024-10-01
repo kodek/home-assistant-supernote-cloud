@@ -6,10 +6,11 @@ from unittest.mock import patch
 
 import pytest
 
-from homeassistant.const import Platform
+from homeassistant.const import Platform, CONF_ACCESS_TOKEN
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
 
+from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
 )
@@ -19,6 +20,10 @@ from custom_components.supernote_cloud.const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+CONFIG_ENTRY_ID = "user-identifier-1"
+CONFIG_ENTRY_TITLE = "user-name"
 
 
 @pytest.fixture(autouse=True)
@@ -53,12 +58,17 @@ async def mock_setup_integration(
 @pytest.fixture(name="config_entry")
 async def mock_config_entry(
     hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
 ) -> MockConfigEntry:
     """Fixture to create a configuration entry."""
     config_entry = MockConfigEntry(
+        unique_id=CONFIG_ENTRY_ID,
+        title=CONFIG_ENTRY_TITLE,
         data={},
         domain=DOMAIN,
-        options={},
+        options={
+            CONF_ACCESS_TOKEN: "access-token-1",
+        },
     )
     config_entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(config_entry.entry_id)

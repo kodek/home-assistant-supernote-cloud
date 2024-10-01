@@ -245,7 +245,7 @@ class SupernoteCloudClient:
             order="time",
             sequence="desc",
         ).to_dict()
-        return await self._client.get_json(
+        return await self._client.post_json(
             "file/list/query", FileListResponse, json=payload
         )
 

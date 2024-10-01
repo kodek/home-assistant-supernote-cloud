@@ -80,15 +80,15 @@ class UserLoginResponse(DataClassJSONMixin):
     token: str
 
 
-@dataclass
+@dataclass(kw_only=True)
 class File(DataClassJSONMixin):
     """Representation of a file."""
 
     id: int
     directory_id: int = field(metadata=field_options(alias="directoryId"))
     file_name: str = field(metadata=field_options(alias="fileName"))
-    size: int
-    md5: str
+    size: int = 0
+    md5: str = ""
     is_folder: str = field(metadata=field_options(alias="isFolder"))  # "Y" or "N"
     create_time: int = field(metadata=field_options(alias="createTime"))
     update_time: int = field(metadata=field_options(alias="updateTime"))

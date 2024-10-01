@@ -1,6 +1,6 @@
 """Data model for local Supernote Backups."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Self
 
 from mashumaro.mixins.json import DataClassJSONMixin
@@ -10,7 +10,7 @@ from mashumaro.mixins.json import DataClassJSONMixin
 class Node(DataClassJSONMixin):
     """A folder in a Supernote backup."""
 
-    children: list[Self] = []
+    children: list[Self] = field(default_factory=list)
 
 
 @dataclass(kw_only=True)
