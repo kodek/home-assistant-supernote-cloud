@@ -26,8 +26,13 @@ from homeassistant.const import (
 )
 
 from .const import DOMAIN, CONF_API_USERNAME
-from .auth import LoginClient, Client, SupernoteCloudClient, ConstantAuth
-from .exceptions import SupernoteException, AuthException, ApiException
+from .supernote_client.auth import (
+    LoginClient,
+    Client,
+    SupernoteCloudClient,
+    ConstantAuth,
+)
+from .supernote_client.exceptions import SupernoteException, AuthException, ApiException
 
 _LOGGER = logging.getLogger(__name__)
 

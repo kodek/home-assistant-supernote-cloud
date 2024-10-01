@@ -84,8 +84,8 @@ class UserLoginResponse(DataClassJSONMixin):
 class File(DataClassJSONMixin):
     """Representation of a file."""
 
-    id: str
-    directory_id: str = field(metadata=field_options(alias="directoryId"))
+    id: int
+    directory_id: int = field(metadata=field_options(alias="directoryId"))
     file_name: str = field(metadata=field_options(alias="fileName"))
     size: int
     md5: str

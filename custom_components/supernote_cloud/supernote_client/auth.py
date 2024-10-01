@@ -236,10 +236,10 @@ class SupernoteCloudClient:
             "user/query", QueryUserResponse, json=payload
         )
 
-    async def file_list(self, directory: int = 0) -> FileListResponse:
+    async def file_list(self, directory_id: int = 0) -> FileListResponse:
         """Return a list of files."""
         payload = FileListRequest(
-            directory_id=directory,
+            directory_id=directory_id,
             page_no=1,
             page_size=100,
             order="time",
@@ -249,9 +249,9 @@ class SupernoteCloudClient:
             "file/list/query", FileListResponse, json=payload
         )
 
-    async def file_download(self, id: int) -> bytes:
+    async def file_download(self, file_id: int) -> bytes:
         """Download a file."""
-        payload = GetFileDownloadUrlRequest(file_id=id, file_type=0).to_dict()
+        payload = GetFileDownloadUrlRequest(file_id=file_id, file_type=0).to_dict()
         download_url_response = await self._client.post_json(
             "file/download/url", GetFileDownloadUrlResponse, json=payload
         )
