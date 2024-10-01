@@ -12,3 +12,12 @@ Library for efficient backup based on:
 - https://github.com/bwhitman/supernote-cloud-python/
 - https://github.com/adrianba/supernote-cloud-api/
 - https://github.com/colingourlay/supernote-cloud-api/
+
+## Development plan
+
+- [x] Authentication library and configuration flow
+- [ ] Media player skeleton of directory contents
+- [ ] Tests for store
+- [ ] Syncing of note contents
+- [ ] Extracting png content
+- [ ] async iterator to page through contents
