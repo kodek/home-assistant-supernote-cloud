@@ -166,10 +166,10 @@ class SupernoteCloudMediaSource(MediaSource):
 
         # Determine the configuration entry for this item
         identifier = SupernoteIdentifier.of(item.identifier)
+        _LOGGER.debug("Browsing media for %s", identifier)
         entry = self._async_config_entry(identifier.config_entry_id)
         store = entry.runtime_data
 
-        _LOGGER.debug("Browsing media for %s", identifier)
         source = _build_account(entry, identifier)
         if (
             identifier.id_type is None
@@ -203,7 +203,7 @@ class SupernoteCloudMediaSource(MediaSource):
                 media_class=MediaClass.APP,
                 media_content_type=MediaType.APP,
                 title=f"Page {page}",
-                can_play=False,
+                can_play=True,
                 can_expand=False,
             )
             for page in range(1, num_pages + 1)
@@ -220,7 +220,7 @@ class SupernoteCloudMediaSource(MediaSource):
     def _async_config_entry(self, config_entry_id: str) -> SupernoteCloudConfigEntry:
         """Return a config entry with the specified id."""
         entry = self.hass.config_entries.async_entry_for_domain_unique_id(
-            DOMAIN, config_entry_id
+            DOMAIN, int(config_entry_id)
         )
         if not entry:
             raise BrowseError(
@@ -270,7 +270,7 @@ def _build_item(node: Node, config_entry_id: str) -> BrowseMediaSource:
         media_content_type=MediaType.APP,
         title=node.name,
         can_play=False,
-        can_expand=False,
+        can_expand=True,
     )
 
 
