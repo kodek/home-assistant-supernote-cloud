@@ -7,7 +7,6 @@ from enum import StrEnum
 import logging
 from typing import Self, cast
 
-
 from homeassistant.components.media_player import MediaClass, MediaType
 from homeassistant.components.media_source import (
     BrowseError,
@@ -27,7 +26,7 @@ _LOGGER = logging.getLogger(__name__)
 class SupernoteIdentifierType(StrEnum):
     """Type for a SupernoteIdentifier."""
 
-    NOTE_FILE = "f"
+    NOTE_FILE = "n"
     NOTE_PAGE = "p"
     FOLDER = "f"
 
@@ -53,10 +52,17 @@ class SupernoteIdentifier:
     media_id: int | None = None
     """Identifies the folder or file contents to show."""
 
+    page_id: int | None = None
+    """Identifies the page of a note file."""
+
     def as_string(self) -> str:
         """Serialize the identifier as a string."""
         if self.id_type is None:
             return self.config_entry_id
+        if self.id_type is SupernoteIdentifierType.NOTE_PAGE:
+            return (
+                f"{self.config_entry_id}/{self.id_type}/{self.media_id}/{self.page_id}"
+            )
         return f"{self.config_entry_id}/{self.id_type}/{self.media_id}"
 
     @classmethod
@@ -82,7 +88,9 @@ class SupernoteIdentifier:
     @classmethod
     def note_page(cls, config_entry_id: str, file_id: int, page_id: int) -> Self:
         """Create an album SupernoteIdentifier."""
-        return cls(config_entry_id, SupernoteIdentifierType.NOTE_FILE, file_id)
+        return cls(
+            config_entry_id, SupernoteIdentifierType.NOTE_PAGE, file_id, page_id=page_id
+        )
 
 
 async def async_get_media_source(hass: HomeAssistant) -> MediaSource:
@@ -161,39 +169,46 @@ class SupernoteCloudMediaSource(MediaSource):
         entry = self._async_config_entry(identifier.config_entry_id)
         store = entry.runtime_data
 
+        _LOGGER.debug("Browsing media for %s", identifier)
         source = _build_account(entry, identifier)
-        if identifier.id_type is None or SupernoteIdentifierType.FOLDER:
+        if (
+            identifier.id_type is None
+            or identifier.id_type is SupernoteIdentifierType.FOLDER
+        ):
             media_id = 0 if identifier.id_type is None else identifier.media_id
+            if media_id is None:
+                raise ValueError("Cannot browse root folder")
             children = await store.get_children(media_id)
             source.children = [
                 _build_item(child, identifier.config_entry_id) for child in children
             ]
             return source
 
-        # if (
-        #     identifier.id_type != SupernoteIdentifierType.ALBUM
-        #     or identifier.media_id is None
-        # ):
-        #     raise BrowseError(f"Unsupported identifier: {identifier}")
+        if identifier.id_type is SupernoteIdentifierType.NOTE_PAGE:
+            raise ValueError("Cannot browse note pages")
 
-        # media_items: list[MediaItem] = []
-        # try:
-        #     async for media_item_result in await client.list_media_items(
-        #         album_id=identifier.media_id, page_size=MEDIA_ITEMS_PAGE_SIZE
-        #     ):
-        #         media_items.extend(media_item_result.media_items)
-        # except SupernoteException as err:
-        #     raise BrowseError(f"Error listing media items: {err}") from err
+        if identifier.media_id is None:
+            raise ValueError("Cannot browse root folder")
 
-        # source.children = [
-        #     _build_media_item(
-        #         SupernoteIdentifier.photo(identifier.config_entry_id, media_item.id),
-        #         media_item,
-        #     )
-        #     for media_item in media_items
-        # ]
-        # return source
-        raise ValueError("done")
+        local_file = await store.get_local_file(identifier.media_id)
+
+        num_pages = await store.get_note_pages(local_file)
+        _LOGGER.debug("Note has %s pages", num_pages)
+        source.children = [
+            BrowseMediaSource(
+                domain=DOMAIN,
+                identifier=SupernoteIdentifier.note_page(
+                    identifier.config_entry_id, identifier.media_id, page
+                ).as_string(),
+                media_class=MediaClass.APP,
+                media_content_type=MediaType.APP,
+                title=f"Page {page}",
+                can_play=False,
+                can_expand=False,
+            )
+            for page in range(1, num_pages + 1)
+        ]
+        return source
 
     def _async_config_entries(self) -> list[SupernoteCloudConfigEntry]:
         """Return all config entries that support photo library reads."""

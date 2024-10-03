@@ -16,8 +16,10 @@ Library for efficient backup based on:
 ## Development plan
 
 - [x] Authentication library and configuration flow
-- [ ] Media player skeleton of directory contents
+- [x] Media player skeleton of directory contents
 - [ ] Tests for store
 - [ ] Syncing of note contents
+- [ ] handle non .note files
 - [ ] Extracting png content
 - [ ] async iterator to page through contents
+- [ ] concurrency fixes

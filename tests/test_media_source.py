@@ -1,6 +1,7 @@
 """Test the Google Photos media source."""
 
 import pytest
+from unittest.mock import patch
 
 from homeassistant.components.media_source import (
     URI_SCHEME,
@@ -69,11 +70,11 @@ async def test_browse_invalid_path(hass: HomeAssistant) -> None:
 
 
 @pytest.mark.usefixtures("setup_integration")
-async def test_browse_albums(
+async def test_browse_folders(
     hass: HomeAssistant,
     aioclient_mock: AiohttpClientMocker,
 ) -> None:
-    """Test a media source with no eligible camera devices."""
+    """Test browsing the top level folder list."""
     browse = await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}")
     assert browse.domain == DOMAIN
     assert browse.identifier is None
@@ -82,6 +83,7 @@ async def test_browse_albums(
         (CONFIG_ENTRY_ID, CONFIG_ENTRY_TITLE)
     ]
 
+    # Browse folders
     aioclient_mock.post(
         "https://cloud.supernote.com/api/file/list/query",
         json={
@@ -96,9 +98,9 @@ async def test_browse_albums(
                     "fileName": "Folder title",
                     "isFolder": "Y",
                     "createTime": 1727759196000,
-                    "updateTime": 1727759196000
+                    "updateTime": 1727759196000,
                 },
-            ]
+            ],
         },
     )
 
@@ -111,6 +113,7 @@ async def test_browse_albums(
         (folder_path, "Folder title"),
     ]
 
+    # Browse contents of a subfolder
     aioclient_mock.clear_requests()
     aioclient_mock.post(
         "https://cloud.supernote.com/api/file/list/query",
@@ -123,21 +126,45 @@ async def test_browse_albums(
                 {
                     "id": "33333333333",
                     "directoryId": "222222222",
-                    "fileName": "Note title",
+                    "fileName": "Note title.note",
                     "isFolder": "N",
                     "size": 12345,
                     "md5": "abcdefabcdefabcdefabcdefabcdef",
                     "createTime": 1727759196000,
-                    "updateTime": 1727759196000
+                    "updateTime": 1727759196000,
                 },
-            ]
+            ],
         },
     )
-
     browse = await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}/{folder_path}")
     assert browse.domain == DOMAIN
     assert browse.identifier == folder_path
     assert browse.title == CONFIG_ENTRY_TITLE
+    note_path = f"{CONFIG_ENTRY_ID}/n/33333333333"
     assert [(child.identifier, child.title) for child in browse.children] == [
-        (f"{CONFIG_ENTRY_ID}/f/33333333333", "Note title")
+        (note_path, "Note title.note")
     ]
+
+    aioclient_mock.clear_requests()
+    aioclient_mock.post(
+        "https://cloud.supernote.com/api/file/download/url",
+        json={"success": True, "url": "https://example.com/file-download-url"},
+    )
+    aioclient_mock.get(
+        "https://example.com/file-download-url",
+        text="file-contents",
+    )
+
+    # Browse into a note
+    with patch(
+        "custom_components.supernote_cloud.store.store.LocalStore.get_note_pages",
+        return_value=2,
+    ):
+        browse = await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}/{note_path}")
+        assert browse.domain == DOMAIN
+        assert browse.identifier == note_path
+        assert browse.title == CONFIG_ENTRY_TITLE
+        assert [(child.identifier, child.title) for child in browse.children] == [
+            (f"{CONFIG_ENTRY_ID}/p/33333333333/1", "Page 1"),
+            (f"{CONFIG_ENTRY_ID}/p/33333333333/2", "Page 2"),
+        ]
