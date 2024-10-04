@@ -1,5 +1,6 @@
 """Local backup storage of Supernote Cloud data."""
 
+import asyncio
 import io
 import datetime
 import pathlib
@@ -103,9 +104,17 @@ class LocalStore:
         # function on the note file on the fly and persit.
         local_path = self._get_local_file_path(local_file)
         local_png_path = local_path.with_suffix(PNG_SUFFIX)
-        if local_png_path.exists():
-            with local_png_path.open("rb") as png_file:
-                return png_file.read()
+
+        def _read_png() -> bytes | None:
+            if local_png_path.exists():
+                with local_png_path.open("rb") as png_file:
+                    return png_file.read()
+            return None
+
+        loop = asyncio.get_running_loop()
+        contents = await loop.run_in_executor(None, _read_png)
+        if contents:
+            return contents
 
         # Convert the note file to a PNG file
         notebook = supernotelib.load(io.BytesIO(note_contents), policy=POLICY)
@@ -114,8 +123,10 @@ class LocalStore:
         content = converter.convert(page_id)
         content.save(str(local_png_path), format="PNG")
 
-        with local_png_path.open("rb") as png_file:
-            return png_file.read()
+        contents = await loop.run_in_executor(None, _read_png)
+        if not contents:
+            raise ValueError("Failed to convert note to PNG")
+        return contents
 
     def _get_local_file_path(self, local_file: LocalFile) -> pathlib.Path:
         parent = self._storage_path / str(local_file.parent_folder_id)
@@ -129,31 +140,46 @@ class LocalStore:
             raise ValueError("Cannot get pages for non-note file")
 
         local_path = self._get_local_file_path(local_file)
-        local_path.parent.mkdir(exist_ok=True)
-
-        # Read the existing metadata for the note file and see if the content
-        # is already cached on local disk.
         local_metadata_path = local_path.with_suffix(METADATA_SUFFIX)
-        if local_metadata_path.exists():
-            with local_metadata_path.open("r") as metadata_file:
-                existing_metadata = LocalFile.from_json(metadata_file.read())
-                if existing_metadata.md5 == local_file.md5:
-                    with local_path.open("rb") as note_file:
-                        _LOGGER.debug("Serving %s from local cache", local_file.name)
-                        return note_file.read()
-                else:
-                    _LOGGER.debug("MD5 updated for %s", local_file.name)
 
-            # Erase any existing metadata contents since they are no longer up
-            # to date.
-            local_metadata_path.unlink(missing_ok=True)
+        def _get_or_invalidate() -> bytes | None:
+            local_path.parent.mkdir(exist_ok=True)
+
+            # Read the existing metadata for the note file and see if the content
+            # is already cached on local disk.
+            if local_metadata_path.exists():
+                with local_metadata_path.open("r") as metadata_file:
+                    existing_metadata = LocalFile.from_json(metadata_file.read())
+                    if existing_metadata.md5 == local_file.md5:
+                        with local_path.open("rb") as note_file:
+                            _LOGGER.debug(
+                                "Serving %s from local cache", local_file.name
+                            )
+                            return note_file.read()
+                    else:
+                        _LOGGER.debug("MD5 updated for %s", local_file.name)
+
+                # Erase any existing metadata contents since they are no longer up
+                # to date.
+                local_metadata_path.unlink(missing_ok=True)
+            return None
+
+        loop = asyncio.get_running_loop()
+        contents = await loop.run_in_executor(None, _get_or_invalidate)
+        if contents:
+            return contents
 
         _LOGGER.debug("Downloading %s", local_file.name)
         contents = await self._client.file_download(local_file.file_id)
-        with local_path.open("wb") as note_file:
-            note_file.write(contents)
 
-        # Write the metadata
-        with local_metadata_path.open("w") as metadata_file:
-            metadata_file.write(cast(str, local_file.to_json()))
+        def _write_contents() -> None:
+            with local_path.open("wb") as note_file:
+                note_file.write(contents)
+
+            # Write the metadata
+            with local_metadata_path.open("w") as metadata_file:
+                metadata_file.write(cast(str, local_file.to_json()))
+
+        await loop.run_in_executor(None, _write_contents)
+
         return contents

@@ -35,9 +35,11 @@ async def async_setup_entry(
     client = Client(session, auth=ConstantAuth(access_token))
     supernote_client = SupernoteCloudClient(client)
     store = LocalStore(store_path, supernote_client)
+
     # run in executor thread
-    def mkdir()
+    def mkdir() -> None:
         store_path.mkdir(parents=True, exist_ok=True)
+
     await hass.async_add_executor_job(mkdir)
 
     entry.runtime_data = store

@@ -69,12 +69,12 @@ async def validate_user_input(
     except (ApiException, SupernoteException) as err:
         _LOGGER.debug("Query api exception: %s", err)
         raise SchemaFlowError("api_error") from err
-    await handler.parent_handler.async_set_unique_id(unique_id=user_response.user_id)  # type: ignore[union-attr]
+    await handler.parent_handler.async_set_unique_id(unique_id=str(user_response.user_id))  # type: ignore[union-attr]
     handler.parent_handler._abort_if_unique_id_configured()  # type: ignore[union-attr]
     return {
         **user_input,
         CONF_ACCESS_TOKEN: access_token,
-        CONF_UNIQUE_ID: user_response.user_id,
+        CONF_UNIQUE_ID: str(user_response.user_id),
         CONF_API_USERNAME: user_response.user_name,
     }
 

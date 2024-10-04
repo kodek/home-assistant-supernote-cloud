@@ -220,7 +220,8 @@ class SupernoteCloudMediaSource(MediaSource):
     def _async_config_entry(self, config_entry_id: str) -> SupernoteCloudConfigEntry:
         """Return a config entry with the specified id."""
         entry = self.hass.config_entries.async_entry_for_domain_unique_id(
-            DOMAIN, int(config_entry_id)
+            DOMAIN,
+            config_entry_id,
         )
         if not entry:
             raise BrowseError(
