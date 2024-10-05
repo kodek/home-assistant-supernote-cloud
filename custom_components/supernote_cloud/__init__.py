@@ -13,7 +13,7 @@ from homeassistant.helpers import aiohttp_client
 from .const import DOMAIN
 from .types import SupernoteCloudConfigEntry
 from .supernote_client.auth import SupernoteCloudClient, ConstantAuth, Client
-from .store.store import LocalStore
+from .store.store import LocalStore, MetadataStore
 
 __all__ = ["DOMAIN"]
 
@@ -34,7 +34,7 @@ async def async_setup_entry(
     access_token = entry.options[CONF_ACCESS_TOKEN]
     client = Client(session, auth=ConstantAuth(access_token))
     supernote_client = SupernoteCloudClient(client)
-    store = LocalStore(store_path, supernote_client)
+    store = LocalStore(MetadataStore(hass), store_path, supernote_client)
 
     # run in executor thread
     def mkdir() -> None:

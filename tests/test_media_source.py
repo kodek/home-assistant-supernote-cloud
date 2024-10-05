@@ -2,11 +2,13 @@
 
 import pytest
 from unittest.mock import patch
+from http import HTTPStatus
 
 from homeassistant.components.media_source import (
     URI_SCHEME,
     BrowseError,
     async_browse_media,
+    async_resolve_media,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
@@ -14,11 +16,14 @@ from homeassistant.setup import async_setup_component
 from custom_components.supernote_cloud.const import DOMAIN
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.typing import ClientSessionGenerator
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
 from .conftest import CONFIG_ENTRY_ID, CONFIG_ENTRY_TITLE
 
 SOURCE_TITLE = "Supernote Cloud"
+ROOT_FOLDER_PATH = f"{CONFIG_ENTRY_ID}/f/0"
+CONTENT_BYTES = "some-content".encode("utf-8")
 
 
 @pytest.fixture(autouse=True)
@@ -46,9 +51,9 @@ async def test_no_config_entries(
 
 
 @pytest.mark.usefixtures("setup_integration")
-async def test_invalid_config_entry(hass: HomeAssistant) -> None:
-    """Test browsing to a config entry that does not exist."""
-    with pytest.raises(BrowseError, match="Could not find config entry"):
+async def test_invalid_path(hass: HomeAssistant) -> None:
+    """Test browsing to a path with an incorrect format."""
+    with pytest.raises(BrowseError, match="Invalid identifier"):
         await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}/invalid-config-entry")
 
 
@@ -60,10 +65,13 @@ async def test_browse_invalid_path(hass: HomeAssistant) -> None:
     assert browse.identifier is None
     assert browse.title == SOURCE_TITLE
     assert [(child.identifier, child.title) for child in browse.children] == [
-        (CONFIG_ENTRY_ID, CONFIG_ENTRY_TITLE)
+        (ROOT_FOLDER_PATH, CONFIG_ENTRY_TITLE)
     ]
 
-    with pytest.raises(BrowseError, match="Invalid SupernoteIdentifierType"):
+    with pytest.raises(BrowseError, match="Invalid identifier"):
+        await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}/{CONFIG_ENTRY_ID}/f")
+
+    with pytest.raises(BrowseError, match="Invalid identifier"):
         await async_browse_media(
             hass, f"{URI_SCHEME}{DOMAIN}/{CONFIG_ENTRY_ID}/q/some-id"
         )
@@ -73,6 +81,7 @@ async def test_browse_invalid_path(hass: HomeAssistant) -> None:
 async def test_browse_folders(
     hass: HomeAssistant,
     aioclient_mock: AiohttpClientMocker,
+    hass_client: ClientSessionGenerator,
 ) -> None:
     """Test browsing the top level folder list."""
     browse = await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}")
@@ -80,7 +89,7 @@ async def test_browse_folders(
     assert browse.identifier is None
     assert browse.title == SOURCE_TITLE
     assert [(child.identifier, child.title) for child in browse.children] == [
-        (CONFIG_ENTRY_ID, CONFIG_ENTRY_TITLE)
+        (ROOT_FOLDER_PATH, CONFIG_ENTRY_TITLE)
     ]
 
     # Browse folders
@@ -104,11 +113,11 @@ async def test_browse_folders(
         },
     )
 
-    browse = await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}/{CONFIG_ENTRY_ID}")
+    browse = await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}/{ROOT_FOLDER_PATH}")
     assert browse.domain == DOMAIN
-    assert browse.identifier == CONFIG_ENTRY_ID
+    assert browse.identifier == ROOT_FOLDER_PATH
     assert browse.title == CONFIG_ENTRY_TITLE
-    folder_path = f"{CONFIG_ENTRY_ID}/f/1111111111111111"
+    folder_path = f"{ROOT_FOLDER_PATH}/1111111111111111"
     assert [(child.identifier, child.title) for child in browse.children] == [
         (folder_path, "Folder title"),
     ]
@@ -139,8 +148,8 @@ async def test_browse_folders(
     browse = await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}/{folder_path}")
     assert browse.domain == DOMAIN
     assert browse.identifier == folder_path
-    assert browse.title == CONFIG_ENTRY_TITLE
-    note_path = f"{CONFIG_ENTRY_ID}/n/33333333333"
+    assert browse.title == "Folder title"
+    note_path = f"{CONFIG_ENTRY_ID}/n/1111111111111111/33333333333"
     assert [(child.identifier, child.title) for child in browse.children] == [
         (note_path, "Note title.note")
     ]
@@ -163,8 +172,23 @@ async def test_browse_folders(
         browse = await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}/{note_path}")
         assert browse.domain == DOMAIN
         assert browse.identifier == note_path
-        assert browse.title == CONFIG_ENTRY_TITLE
+        assert browse.title == "Note title.note"
+        page_path_prefix = f"{CONFIG_ENTRY_ID}/p/1111111111111111/33333333333"
         assert [(child.identifier, child.title) for child in browse.children] == [
-            (f"{CONFIG_ENTRY_ID}/p/33333333333/1", "Page 1"),
-            (f"{CONFIG_ENTRY_ID}/p/33333333333/2", "Page 2"),
+            (f"{page_path_prefix}/1", "Page 1"),
+            (f"{page_path_prefix}/2", "Page 2"),
         ]
+
+    media = await async_resolve_media(
+        hass, f"{URI_SCHEME}{DOMAIN}/{page_path_prefix}/1", None
+    )
+    assert media.url == f"/api/supernote_cloud/content/{page_path_prefix}/1"
+    assert media.mime_type == "image/png"
+
+    client = await hass_client()
+    response = await client.get(media.url)
+    # TODO: Implement
+    assert response.status == HTTPStatus.NOT_FOUND
+    # assert response.status == HTTPStatus.OK, f"Response not matched: {response}"
+    # contents = await response.read()
+    # assert contents == CONTENT_BYTES

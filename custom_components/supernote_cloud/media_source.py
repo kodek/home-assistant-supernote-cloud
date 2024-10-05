@@ -13,14 +13,17 @@ from homeassistant.components.media_source import (
     BrowseMediaSource,
     MediaSource,
     MediaSourceItem,
+    PlayMedia,
 )
 from homeassistant.core import HomeAssistant
 
 from . import SupernoteCloudConfigEntry
 from .const import DOMAIN
-from .store.model import LocalFolder, LocalFile, Node
+from .store.model import FileInfo, FolderInfo
 
 _LOGGER = logging.getLogger(__name__)
+
+BACKUP_CONTENT_URL_FORMAT = "/api/{domain}/content/{identifier}"
 
 
 class SupernoteIdentifierType(StrEnum):
@@ -46,51 +49,94 @@ class SupernoteIdentifier:
     config_entry_id: str
     """Identifies the account for the media item."""
 
-    id_type: SupernoteIdentifierType | None = None
+    id_type: SupernoteIdentifierType
     """Type of identifier"""
 
-    media_id: int | None = None
+    media_id_path: list[int]
     """Identifies the folder or file contents to show."""
 
-    page_id: int | None = None
-    """Identifies the page of a note file."""
+    @property
+    def is_root(self) -> bool:
+        """Return True if this is the root node."""
+        return len(self.media_id_path) == 1
+
+    @property
+    def media_id(self) -> int:
+        """Return the leaf media id for the identifier."""
+        return self.media_id_path[-1]
+
+    @property
+    def parent_folder_id(self) -> int | None:
+        """Return the parent node media id for the identifier."""
+        if self.is_root:
+            return None
+        if self.id_type == SupernoteIdentifierType.NOTE_PAGE:
+            if len(self.media_id_path) < 3:
+                raise ValueError(
+                    f"Invalid note page identifier did not contain a parent folder id: {self}"
+                )
+            return self.media_id_path[-3]
+        if len(self.media_id_path) < 2:
+            raise ValueError(
+                f"Invalid identifier did not contain a parent folder id: {self}"
+            )
+        return self.media_id_path[-2]
+
+    @property
+    def note_file_id(self) -> int | None:
+        """Return the note file id for a NOTE_PAGE identifier."""
+        if self.id_type == SupernoteIdentifierType.NOTE_FILE:
+            return self.media_id
+        if self.id_type != SupernoteIdentifierType.NOTE_PAGE:
+            return None
+        if len(self.media_id_path) < 2:
+            raise ValueError(
+                f"Invalid note page identifier did not contain a note file id: {self}"
+            )
+        return self.media_id_path[-2]
+
+    @property
+    def page_id(self) -> int | None:
+        """Return the page id for a NOTE_PAGE identifier."""
+        if self.id_type != SupernoteIdentifierType.NOTE_PAGE:
+            return None
+        if len(self.media_id_path) < 3:
+            raise ValueError(
+                f"Invalid note page identifier did not contain a page id: {self}"
+            )
+        return self.media_id_path[-1]
 
     def as_string(self) -> str:
         """Serialize the identifier as a string."""
-        if self.id_type is None:
-            return self.config_entry_id
-        if self.id_type is SupernoteIdentifierType.NOTE_PAGE:
-            return (
-                f"{self.config_entry_id}/{self.id_type}/{self.media_id}/{self.page_id}"
-            )
-        return f"{self.config_entry_id}/{self.id_type}/{self.media_id}"
+        path_parts = "/".join(str(part) for part in self.media_id_path)
+        return f"{self.config_entry_id}/{self.id_type}/{path_parts}"
 
     @classmethod
     def of(cls, identifier: str) -> Self:
         """Parse a SupernoteIdentifier form a string."""
-        parts = identifier.split("/")
-        if len(parts) == 1:
-            return cls(parts[0])
+        parts = identifier.split("/", maxsplit=2)
         if len(parts) != 3:
             raise BrowseError(f"Invalid identifier: {identifier}")
-        return cls(parts[0], SupernoteIdentifierType.of(parts[1]), int(parts[2]))
+        try:
+            path_parts = [int(p) for p in parts[2].split("/")]
+        except ValueError as err:
+            raise BrowseError(f"Invalid identifier: {identifier}") from err
+        return cls(parts[0], SupernoteIdentifierType.of(parts[1]), path_parts)
 
     @classmethod
-    def folder(cls, config_entry_id: str, folder_id: int) -> Self:
+    def folder(cls, config_entry_id: str, media_ids: list[int]) -> Self:
         """Create an album SupernoteIdentifier."""
-        return cls(config_entry_id, SupernoteIdentifierType.FOLDER, folder_id)
+        return cls(config_entry_id, SupernoteIdentifierType.FOLDER, media_ids)
 
     @classmethod
-    def note_file(cls, config_entry_id: str, file_id: int) -> Self:
+    def note_file(cls, config_entry_id: str, media_ids: list[int]) -> Self:
         """Create an album SupernoteIdentifier."""
-        return cls(config_entry_id, SupernoteIdentifierType.NOTE_FILE, file_id)
+        return cls(config_entry_id, SupernoteIdentifierType.NOTE_FILE, media_ids)
 
     @classmethod
-    def note_page(cls, config_entry_id: str, file_id: int, page_id: int) -> Self:
+    def note_page(cls, config_entry_id: str, media_ids: list[int]) -> Self:
         """Create an album SupernoteIdentifier."""
-        return cls(
-            config_entry_id, SupernoteIdentifierType.NOTE_PAGE, file_id, page_id=page_id
-        )
+        return cls(config_entry_id, SupernoteIdentifierType.NOTE_PAGE, media_ids)
 
 
 async def async_get_media_source(hass: HomeAssistant) -> MediaSource:
@@ -108,35 +154,18 @@ class SupernoteCloudMediaSource(MediaSource):
         super().__init__(DOMAIN)
         self.hass = hass
 
-    # async def async_resolve_media(self, item: MediaSourceItem) -> PlayMedia:
-    #     """Resolve media identifier to a url.
-
-    #     This will resolve a specific media item to a url for the full photo or video contents.
-    #     """
-    #     try:
-    #         identifier = SupernoteIdentifier.of(item.identifier)
-    #     except ValueError as err:
-    #         raise BrowseError(f"Could not parse identifier: {item.identifier}") from err
-    #     if (
-    #         identifier.media_id is None
-    #         or identifier.id_type != SupernoteIdentifierType.PHOTO
-    #     ):
-    #         raise BrowseError(
-    #             f"Could not resolve identiifer that is not a Photo: {identifier}"
-    #         )
-    #     entry = self._async_config_entry(identifier.config_entry_id)
-    #     client = entry.runtime_data.client
-    #     media_item = await client.get_media_item(media_item_id=identifier.media_id)
-    #     if not media_item.mime_type:
-    #         raise BrowseError("Could not determine mime type of media item")
-    #     if media_item.media_metadata and (media_item.media_metadata.video is not None):
-    #         url = _video_url(media_item)
-    #     else:
-    #         url = _media_url(media_item, LARGE_IMAGE_SIZE)
-    #     return PlayMedia(
-    #         url=url,
-    #         mime_type=media_item.mime_type,
-    #     )
+    async def async_resolve_media(self, item: MediaSourceItem) -> PlayMedia:
+        """Resolve media identifier to a note page url."""
+        try:
+            identifier = SupernoteIdentifier.of(item.identifier)
+        except ValueError as err:
+            raise BrowseError(f"Could not parse identifier: {item.identifier}") from err
+        return PlayMedia(
+            url=BACKUP_CONTENT_URL_FORMAT.format(
+                domain=DOMAIN, identifier=identifier.as_string()
+            ),
+            mime_type="image/png",
+        )
 
     async def async_browse_media(self, item: MediaSourceItem) -> BrowseMediaSource:
         """Return details about the media source.
@@ -158,7 +187,8 @@ class SupernoteCloudMediaSource(MediaSource):
                 children_media_class=MediaClass.DIRECTORY,
                 children=[
                     _build_account(
-                        entry, SupernoteIdentifier(cast(str, entry.unique_id))
+                        entry,
+                        SupernoteIdentifier.folder(cast(str, entry.unique_id), [0]),
                     )
                     for entry in self._async_config_entries()
                 ],
@@ -167,38 +197,111 @@ class SupernoteCloudMediaSource(MediaSource):
         # Determine the configuration entry for this item
         identifier = SupernoteIdentifier.of(item.identifier)
         _LOGGER.debug("Browsing media for %s", identifier)
+        if identifier.id_type is None:
+            raise BrowseError(
+                f"Invalid identifier did not contain an id type: {identifier}"
+            )
+
         entry = self._async_config_entry(identifier.config_entry_id)
+        entry_unique_id = cast(str, entry.unique_id)
         store = entry.runtime_data
 
-        source = _build_account(entry, identifier)
-        if (
-            identifier.id_type is None
-            or identifier.id_type is SupernoteIdentifierType.FOLDER
-        ):
-            media_id = 0 if identifier.id_type is None else identifier.media_id
-            if media_id is None:
-                raise ValueError("Cannot browse root folder")
-            children = await store.get_children(media_id)
-            source.children = [
-                _build_item(child, identifier.config_entry_id) for child in children
-            ]
+        if identifier.id_type is SupernoteIdentifierType.FOLDER:
+            if not len(identifier.media_id_path):
+                raise BrowseError(
+                    f"Invalid identifier did not contain a media id: {identifier}"
+                )
+
+            # Create the node for the parent folder
+            if identifier.is_root:
+                source = _build_account(entry, identifier)
+            else:
+                if identifier.parent_folder_id is None:
+                    raise BrowseError(
+                        f"Invalid identifier did not contain a parent folder id: {identifier}"
+                    )
+                parent_folder_contents = await store.get_folder_contents(
+                    identifier.parent_folder_id
+                )
+                _LOGGER.debug("Contents: %s", parent_folder_contents)
+                if (
+                    folder_info := parent_folder_contents.children.get(
+                        identifier.media_id
+                    )
+                ) is None:
+                    raise BrowseError(
+                        f"Could not find folder {identifier.media_id} in parent {identifier.parent_folder_id}"
+                    )
+                if not isinstance(folder_info, FolderInfo):
+                    raise BrowseError(f"Expected folder but got {folder_info}")
+                source = _build_folder(
+                    entry_unique_id,
+                    identifier.parent_folder_id,
+                    folder_info.folder_id,
+                    folder_info.name,
+                )
+
+            # Add the children of the folder
+            folder_contents = await store.get_folder_contents(identifier.media_id)
+            children = []
+            for child in folder_contents.children.values():
+                _LOGGER.debug("Child: %s", child)
+                if isinstance(child, FileInfo):
+                    children.append(
+                        _build_file(
+                            entry_unique_id,
+                            identifier.media_id,
+                            child.file_id,
+                            child.name,
+                        )
+                    )
+                elif isinstance(child, FolderInfo):
+                    children.append(
+                        _build_folder(
+                            entry_unique_id,
+                            identifier.media_id,
+                            child.folder_id,
+                            child.name,
+                        )
+                    )
+                else:
+                    raise ValueError(f"Unexpected child type: {child}")
+            source.children = children
             return source
 
         if identifier.id_type is SupernoteIdentifierType.NOTE_PAGE:
             raise ValueError("Cannot browse note pages")
 
-        if identifier.media_id is None:
-            raise ValueError("Cannot browse root folder")
+        if identifier.parent_folder_id is None:
+            raise ValueError("Cannot browse root folder as a note")
 
-        local_file = await store.get_local_file(identifier.media_id)
+        # We are browsing a note file
+        parent_folder_contents = await store.get_folder_contents(
+            identifier.parent_folder_id
+        )
+        if (
+            file_info := parent_folder_contents.children.get(identifier.media_id)
+        ) is None:
+            raise BrowseError(
+                f"Could not find note file {identifier.media_id} in parent {identifier.parent_folder_id}"
+            )
+        if not isinstance(file_info, FileInfo):
+            raise BrowseError(f"Expected file but got {file_info}")
 
-        num_pages = await store.get_note_pages(local_file)
+        source = _build_file(
+            entry_unique_id,
+            identifier.parent_folder_id,
+            file_info.file_id,
+            file_info.name,
+        )
+        num_pages = await store.get_note_pages(file_info)
         _LOGGER.debug("Note has %s pages", num_pages)
         source.children = [
             BrowseMediaSource(
                 domain=DOMAIN,
                 identifier=SupernoteIdentifier.note_page(
-                    identifier.config_entry_id, identifier.media_id, page
+                    identifier.config_entry_id,
+                    [identifier.parent_folder_id, identifier.media_id, page],
                 ).as_string(),
                 media_class=MediaClass.APP,
                 media_content_type=MediaType.APP,
@@ -246,30 +349,37 @@ def _build_account(
     )
 
 
-def _build_item(node: Node, config_entry_id: str) -> BrowseMediaSource:
-    """Build an album node."""
-    if isinstance(node, LocalFolder):
-        return BrowseMediaSource(
-            domain=DOMAIN,
-            identifier=SupernoteIdentifier.folder(
-                config_entry_id, node.folder_id
-            ).as_string(),
-            media_class=MediaClass.ALBUM,
-            media_content_type=MediaClass.ALBUM,
-            title=node.name,
-            can_play=False,
-            can_expand=True,
-        )
-    if not isinstance(node, LocalFile):
-        raise ValueError(f"Unsupported node type: {node}")
+def _build_folder(
+    config_entry_id: str, parent_folder_id: int, folder_id: int, name: str
+) -> BrowseMediaSource:
+    """Build a media item node for a folder."""
     return BrowseMediaSource(
         domain=DOMAIN,
-        identifier=SupernoteIdentifier.note_file(
-            config_entry_id, node.file_id
+        identifier=SupernoteIdentifier.folder(
+            config_entry_id,
+            [parent_folder_id, folder_id],
         ).as_string(),
         media_class=MediaClass.APP,
         media_content_type=MediaType.APP,
-        title=node.name,
+        title=name,
+        can_play=False,
+        can_expand=True,
+    )
+
+
+def _build_file(
+    config_entry_id: str, parent_folder_id: int, file_id: int, name: str
+) -> BrowseMediaSource:
+    """Build a media item node for a file."""
+    return BrowseMediaSource(
+        domain=DOMAIN,
+        identifier=SupernoteIdentifier.note_file(
+            config_entry_id,
+            [parent_folder_id, file_id],
+        ).as_string(),
+        media_class=MediaClass.ALBUM,
+        media_content_type=MediaClass.ALBUM,
+        title=name,
         can_play=False,
         can_expand=True,
     )

@@ -1,69 +1,100 @@
 """Local backup storage of Supernote Cloud data."""
 
+from __future__ import annotations
+
 import asyncio
 import io
-import datetime
 import pathlib
 import logging
-from dataclasses import dataclass, field
 from typing import cast
 
 import supernotelib
 
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.storage import Store
+
 from ..supernote_client.auth import SupernoteCloudClient
-from .model import LocalFolder, LocalFile, Node
+from .model import FolderContents, FileInfo, FolderInfo
 
 _LOGGER = logging.getLogger(__name__)
 
 
-MAX_CACHE_LIFETIME = datetime.timedelta(hours=1)
 NOTE_SUFFIX = ".note"
 METADATA_SUFFIX = ".meta.json"
 PNG_SUFFIX = ".png"
 POLICY = "loose"
+STORAGE_KEY = "supernote_cloud"
+STORAGE_VERSION = 1
 
 
-@dataclass(kw_only=True)
-class CacheEntry:
-    """A cache entry."""
+class MetadataStore:
+    """Local storage of metadata for Supernote Cloud data.
 
-    node: LocalFile | None = None
-    children: list[Node] = field(default_factory=list)
-    timestamp: datetime.datetime = field(default_factory=datetime.datetime.now)
+    This is essentially a cache of the API responses to avoid putting load
+    on cloud when reading backups.
+    """
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        """Initialize the store."""
+        self._store = Store(
+            hass,
+            version=STORAGE_VERSION,
+            key=f"{STORAGE_KEY}.folder_contents",
+            private=True,
+        )
+
+    async def get_folder_contents(self, folder_id: int) -> FolderContents | None:
+        """Get the metadata for a local folder."""
+        data = await self._store.async_load() or {}
+        if (metadata := data.get(str(folder_id))) is None:
+            return None
+        _LOGGER.debug("Loaded %s from local cache", metadata)
+        return FolderContents.from_dict(metadata)
+
+    async def set_folder_contents(self, folder: FolderContents) -> None:
+        """Set the metadata for a local folder."""
+        data = await self._store.async_load() or {}
+        data[str(folder.folder_id)] = folder.to_dict()
+        await self._store.async_save(data)
 
 
 class LocalStore:
     """Local storage of Supernote Cloud data."""
 
-    def __init__(self, storage_path: pathlib.Path, client: SupernoteCloudClient):
+    def __init__(
+        self,
+        metadata_store: MetadataStore,
+        storage_path: pathlib.Path,
+        client: SupernoteCloudClient,
+    ):
         """Initialize the store."""
+        self._metadata_store = metadata_store
         self._storage_path = storage_path
         self._client = client
-        self._folder_cache: dict[int, CacheEntry] = {}  # directory id -> cache entry
-        self._file_cache: dict[int, CacheEntry] = {}  # file id -> cache entry
 
-    async def get_children(self, folder_id: int) -> list[Node]:
-        """Sync the local store with the cloud."""
-        if folder_id in self._folder_cache:
-            cache_entry = self._folder_cache[folder_id]
-            if (datetime.datetime.now() - cache_entry.timestamp) < MAX_CACHE_LIFETIME:
-                return cache_entry.children
+    async def get_folder_contents(self, folder_id: int) -> FolderContents:
+        """Fetch the folder information."""
+
+        folder_contents = await self._metadata_store.get_folder_contents(folder_id)
+        if folder_contents and not folder_contents.is_expired:
+            _LOGGER.debug("Serving %s from local cache %s", folder_id, folder_contents)
+            return folder_contents
 
         # Fetch the folder from the cloud
         file_list_response = await self._client.file_list(folder_id)
-        nodes: list[Node] = []
+        folder_contents = FolderContents(folder_id=folder_id)
         for file in file_list_response.file_list:
             if file.is_folder == "Y":
-                new_folder = LocalFolder(
+                new_folder = FolderInfo(
                     folder_id=file.id,
                     parent_folder_id=file.directory_id,
                     name=file.file_name,
                     create_time=file.create_time,
                     update_time=file.update_time,
                 )
-                nodes.append(new_folder)
+                folder_contents.folder_children.append(new_folder)
             else:
-                new_file = LocalFile(
+                new_file = FileInfo(
                     file_id=file.id,
                     parent_folder_id=file.directory_id,
                     name=file.file_name,
@@ -72,30 +103,22 @@ class LocalStore:
                     create_time=file.create_time,
                     update_time=file.update_time,
                 )
-                self._file_cache[file.id] = CacheEntry(node=new_file)
-                nodes.append(new_file)
+                folder_contents.file_children.append(new_file)
 
         # Update the cache
-        self._folder_cache[folder_id] = CacheEntry(children=nodes)
-        return nodes
+        _LOGGER.debug("Updating cache for %s", folder_contents)
+        await self._metadata_store.set_folder_contents(folder_contents)
 
-    async def get_local_file(self, file_id: int) -> LocalFile:
-        """Sync the local store with the cloud."""
-        if file_id in self._file_cache:
-            cache_entry = self._file_cache[file_id]
-            if not cache_entry.node:
-                raise ValueError("Invalid file node, did not have node contents")
-            return cache_entry.node
-        raise ValueError("File not found")
+        return folder_contents
 
-    async def get_note_pages(self, local_file: LocalFile) -> int:
+    async def get_note_pages(self, local_file: FileInfo) -> int:
         """Get the number of pages for a note file."""
 
         note_contents = await self._get_note(local_file)
         notebook = supernotelib.load(io.BytesIO(note_contents), policy=POLICY)
         return int(notebook.get_total_pages())
 
-    async def get_note_png(self, local_file: LocalFile, page_num: int) -> bytes:
+    async def get_note_png(self, local_file: FileInfo, page_num: int) -> bytes:
         """Get the PNG contents of a note file."""
 
         note_contents = await self._get_note(local_file)
@@ -128,13 +151,13 @@ class LocalStore:
             raise ValueError("Failed to convert note to PNG")
         return contents
 
-    def _get_local_file_path(self, local_file: LocalFile) -> pathlib.Path:
+    def _get_local_file_path(self, local_file: FileInfo) -> pathlib.Path:
         parent = self._storage_path / str(local_file.parent_folder_id)
         # Read the existing metadata for the note file and see if the content
         # is already cached on local disk.
         return parent / local_file.name
 
-    async def _get_note(self, local_file: LocalFile) -> bytes:
+    async def _get_note(self, local_file: FileInfo) -> bytes:
         """Get the contents of a note file."""
         if not local_file.name.endswith(NOTE_SUFFIX):
             raise ValueError("Cannot get pages for non-note file")
@@ -149,7 +172,7 @@ class LocalStore:
             # is already cached on local disk.
             if local_metadata_path.exists():
                 with local_metadata_path.open("r") as metadata_file:
-                    existing_metadata = LocalFile.from_json(metadata_file.read())
+                    existing_metadata = FileInfo.from_json(metadata_file.read())
                     if existing_metadata.md5 == local_file.md5:
                         with local_path.open("rb") as note_file:
                             _LOGGER.debug(
