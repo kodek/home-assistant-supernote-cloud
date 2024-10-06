@@ -38,3 +38,4 @@ Library for efficient backup based on:
 - [ ] async iterator to page through contents
 - [ ] concurrency fixes
 - [x] fully async io
+- [ ] etag support
