@@ -356,22 +356,22 @@ class SupernoteCloudMediaSource(MediaSource):
             file_info.file_id,
             file_info.name,
         )
-        num_pages = await store.get_note_pages(file_info)
-        _LOGGER.debug("Note has %s pages", num_pages)
+        page_names = await store.get_note_page_names(file_info)
+        _LOGGER.debug("Note has %s pages", len(page_names))
         source.children = [
             BrowseMediaSource(
                 domain=DOMAIN,
                 identifier=SupernoteIdentifier.note_page(
                     identifier.config_entry_id,
-                    [identifier.parent_folder_id, identifier.media_id, page],
+                    [identifier.parent_folder_id, identifier.media_id, page_id],
                 ).as_string(),
                 media_class=MediaClass.APP,
                 media_content_type=MediaType.APP,
-                title=f"Page {page + 1}",
+                title=page_name,
                 can_play=True,
                 can_expand=False,
             )
-            for page in range(0, num_pages)
+            for page_id, page_name in enumerate(page_names)
         ]
         return source
 

@@ -169,8 +169,8 @@ async def test_browse_folders(
 
     # Browse into a note
     with patch(
-        "custom_components.supernote_cloud.store.store.LocalStore.get_note_pages",
-        return_value=2,
+        "custom_components.supernote_cloud.store.store.LocalStore.get_note_page_names",
+        return_value=["Page 1", "Page 2"],
     ):
         browse = await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}/{note_path}")
         assert browse.domain == DOMAIN

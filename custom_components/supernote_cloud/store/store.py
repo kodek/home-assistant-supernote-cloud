@@ -109,44 +109,24 @@ class LocalStore:
 
         return folder_contents
 
-    async def get_note_pages(self, local_file: FileInfo) -> int:
-        """Get the number of pages for a note file."""
-
-        note_contents = await self._get_note(local_file)
-        notebook = supernotelib.load(io.BytesIO(note_contents), policy=POLICY)
-        return int(notebook.get_total_pages())
+    async def get_note_page_names(self, local_file: FileInfo) -> list[str]:
+        """Get the names of each page of the note file."""
+        notebook = await self._get_notebook_file(local_file)
+        return notebook.page_names
 
     async def get_note_png(self, local_file: FileInfo, page_num: int) -> bytes:
         """Get the PNG contents of a note file."""
 
-        note_contents = await self._get_note(local_file)
-        notebook = supernotelib.load(io.BytesIO(note_contents), policy=POLICY)
-        page_id = notebook.get_page(page_num).get_pageid()
+        notebook = await self._get_notebook_file(local_file)
 
         # If a png version of the note file does not exist, call the conversion
         # function on the note file on the fly and persit.
-        local_path = self._get_local_file_path(local_file)
-        local_png_path = (
-            local_path.with_suffix("") / f"{page_num}-{page_id}"
-        ).with_suffix(PNG_SUFFIX)
-
-        def _read_png() -> bytes | None:
-            local_png_path.parent.mkdir(exist_ok=True)
-            if local_png_path.exists():
-                with local_png_path.open("rb") as png_file:
-                    return png_file.read()
-            return None
-
-        loop = asyncio.get_running_loop()
-        contents = await loop.run_in_executor(None, _read_png)
-        if contents:
+        if (contents := await notebook.read_png(page_num)) is not None:
             return contents
 
-        converter = supernotelib.converter.ImageConverter(notebook)
-        content = converter.convert(page_num)
-        content.save(str(local_png_path), format="PNG")
+        await notebook.save_page_png(page_num)
 
-        contents = await loop.run_in_executor(None, _read_png)
+        contents = await notebook.read_png(page_num)
         if not contents:
             raise ValueError("Failed to convert note to PNG")
         return contents
@@ -157,7 +137,7 @@ class LocalStore:
         # is already cached on local disk.
         return parent / local_file.name
 
-    async def _get_note(self, local_file: FileInfo) -> bytes:
+    async def _get_notebook_file(self, local_file: FileInfo) -> NotebookFile:
         """Get the contents of a note file."""
         if not local_file.name.endswith(NOTE_SUFFIX):
             raise ValueError("Cannot get pages for non-note file")
@@ -183,7 +163,7 @@ class LocalStore:
         loop = asyncio.get_running_loop()
         contents = await loop.run_in_executor(None, _get_or_invalidate)
         if contents:
-            return contents
+            return NotebookFile(contents, local_path)
 
         _LOGGER.debug("Downloading %s", local_file.name)
         contents = await self._client.file_download(local_file.file_id)
@@ -202,4 +182,65 @@ class LocalStore:
                 local_file.md5,
             )
 
-        return contents
+        return NotebookFile(contents, local_path)
+
+
+class NotebookFile:
+    """Representation of a note file."""
+
+    def __init__(self, note_contents: bytes, local_file_path: pathlib.Path) -> None:
+        """Initialize the notebook."""
+        self._note_contents = note_contents
+        self._local_file_path = local_file_path
+        self._notebook = supernotelib.load(io.BytesIO(note_contents), policy=POLICY)
+        pages = []
+        for page_num in range(self._notebook.get_total_pages()):
+            page_id = self._notebook.get_page(page_num).get_pageid()
+            page_name = f"{page_num:03d}-{page_id}"
+            pages.append(page_name)
+        self._pages = pages
+
+    @property
+    def contents(self) -> bytes:
+        """Get the contents of the note file."""
+        return self._note_contents
+
+    @property
+    def page_names(self) -> list[str]:
+        """Get the names of each page of the note file."""
+        return self._pages
+
+    def local_png_path(self, page_num: int) -> pathlib.Path:
+        if page_num >= len(self._pages) or page_num < 0:
+            raise ValueError("Invalid page number")
+        return (
+            self._local_file_path.parent
+            / self._local_file_path.stem
+            / self._pages[page_num]
+        ).with_suffix(PNG_SUFFIX)
+
+    async def save_page_png(self, page_num: int) -> None:
+        """Extract the PNG contents of a note file."""
+        local_png_path = self.local_png_path(page_num)
+
+        def _write_png() -> None:
+            converter = supernotelib.converter.ImageConverter(self._notebook)
+            content = converter.convert(page_num)
+            content.save(str(local_png_path), format="PNG")
+
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, _write_png)
+
+    async def read_png(self, page_num: int) -> bytes | None:
+        """Read the PNG contents of a note file."""
+        local_png_path = self.local_png_path(page_num)
+
+        def _read_png() -> bytes | None:
+            local_png_path.parent.mkdir(exist_ok=True)
+            if local_png_path.exists():
+                with local_png_path.open("rb") as png_file:
+                    return png_file.read()
+            return None
+
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, _read_png)
