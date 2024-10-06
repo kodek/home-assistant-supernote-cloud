@@ -37,12 +37,12 @@ async def async_setup_entry(
 ) -> bool:
     """Set up a config entry."""
 
-    store_path = pathlib.Path(hass.config.path(STORE_PATH))
+    store_path = pathlib.Path(hass.config.path(STORE_PATH)) / str(entry.entry_id)
     session = aiohttp_client.async_get_clientsession(hass)
     access_token = entry.options[CONF_ACCESS_TOKEN]
     client = Client(session, auth=ConstantAuth(access_token))
     supernote_client = SupernoteCloudClient(client)
-    store = LocalStore(MetadataStore(hass), store_path, supernote_client)
+    store = LocalStore(MetadataStore(hass, store_path), store_path, supernote_client)
 
     # run in executor thread
     def mkdir() -> None:

@@ -368,11 +368,11 @@ class SupernoteCloudMediaSource(MediaSource):
                 ).as_string(),
                 media_class=MediaClass.APP,
                 media_content_type=MediaType.APP,
-                title=f"Page {page}",
+                title=f"Page {page + 1}",
                 can_play=True,
                 can_expand=False,
             )
-            for page in range(1, num_pages + 1)
+            for page in range(0, num_pages)
         ]
         return source
 

@@ -34,12 +34,12 @@ class MetadataStore:
     on cloud when reading backups.
     """
 
-    def __init__(self, hass: HomeAssistant) -> None:
+    def __init__(self, hass: HomeAssistant, storage_path: pathlib.Path) -> None:
         """Initialize the store."""
         self._store = Store(
             hass,
             version=STORAGE_VERSION,
-            key=f"{STORAGE_KEY}.folder_contents",
+            key=str(storage_path / "folder_contents.json"),
             private=True,
         )
 
@@ -48,7 +48,6 @@ class MetadataStore:
         data = await self._store.async_load() or {}
         if (metadata := data.get(str(folder_id))) is None:
             return None
-        _LOGGER.debug("Loaded %s from local cache", metadata)
         return FolderContents.from_dict(metadata)
 
     async def set_folder_contents(self, folder: FolderContents) -> None:
@@ -122,13 +121,16 @@ class LocalStore:
         """Get the PNG contents of a note file."""
 
         note_contents = await self._get_note(local_file)
+        notebook = supernotelib.load(io.BytesIO(note_contents), policy=POLICY)
+        page_id = notebook.get_page(page_num).get_pageid()
 
         # If a png version of the note file does not exist, call the conversion
         # function on the note file on the fly and persit.
         local_path = self._get_local_file_path(local_file)
-        local_png_path = (local_path.with_suffix("") / str(page_num)).with_suffix(PNG_SUFFIX)
+        local_png_path = (local_path.with_suffix("") / f"{page_num}-{page_id}").with_suffix(PNG_SUFFIX)
 
         def _read_png() -> bytes | None:
+            local_png_path.parent.mkdir(exist_ok=True)
             if local_png_path.exists():
                 with local_png_path.open("rb") as png_file:
                     return png_file.read()
@@ -139,11 +141,8 @@ class LocalStore:
         if contents:
             return contents
 
-        # Convert the note file to a PNG file
-        notebook = supernotelib.load(io.BytesIO(note_contents), policy=POLICY)
         converter = supernotelib.converter.ImageConverter(notebook)
-        page_id = notebook.get_page(page_num).get_pageid()
-        content = converter.convert(page_id)
+        content = converter.convert(page_num)
         content.save(str(local_png_path), format="PNG")
 
         contents = await loop.run_in_executor(None, _read_png)
