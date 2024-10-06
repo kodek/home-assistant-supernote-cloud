@@ -126,7 +126,7 @@ class LocalStore:
         # If a png version of the note file does not exist, call the conversion
         # function on the note file on the fly and persit.
         local_path = self._get_local_file_path(local_file)
-        local_png_path = local_path.with_suffix(PNG_SUFFIX)
+        local_png_path = (local_path.with_suffix("") / str(page_num)).with_suffix(PNG_SUFFIX)
 
         def _read_png() -> bytes | None:
             if local_png_path.exists():
