@@ -7,6 +7,9 @@ from enum import StrEnum
 import logging
 from typing import Self, cast
 
+from aiohttp.web import Response, Request, StreamResponse
+
+from homeassistant.components.http.view import HomeAssistantView
 from homeassistant.components.media_player import MediaClass, MediaType
 from homeassistant.components.media_source import (
     BrowseError,
@@ -15,15 +18,13 @@ from homeassistant.components.media_source import (
     MediaSourceItem,
     PlayMedia,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 
 from . import SupernoteCloudConfigEntry
 from .const import DOMAIN
 from .store.model import FileInfo, FolderInfo
 
 _LOGGER = logging.getLogger(__name__)
-
-BACKUP_CONTENT_URL_FORMAT = "/api/{domain}/content/{identifier}"
 
 
 class SupernoteIdentifierType(StrEnum):
@@ -106,22 +107,31 @@ class SupernoteIdentifier:
             )
         return self.media_id_path[-1]
 
-    def as_string(self) -> str:
+    def as_string(self, separator: str = "/") -> str:
         """Serialize the identifier as a string."""
-        path_parts = "/".join(str(part) for part in self.media_id_path)
-        return f"{self.config_entry_id}/{self.id_type}/{path_parts}"
+        path_parts = separator.join(str(part) for part in self.media_id_path)
+        return f"{self.config_entry_id}{separator}{self.id_type}{separator}{path_parts}"
 
     @classmethod
-    def of(cls, identifier: str) -> Self:
+    def of(cls, identifier: str, separator: str = "/") -> Self:
         """Parse a SupernoteIdentifier form a string."""
-        parts = identifier.split("/", maxsplit=2)
+        parts = identifier.split(separator, maxsplit=2)
         if len(parts) != 3:
             raise BrowseError(f"Invalid identifier: {identifier}")
         try:
-            path_parts = [int(p) for p in parts[2].split("/")]
+            path_parts = [int(p) for p in parts[2].split(separator)]
         except ValueError as err:
             raise BrowseError(f"Invalid identifier: {identifier}") from err
         return cls(parts[0], SupernoteIdentifierType.of(parts[1]), path_parts)
+
+    def encode(self) -> str:
+        """Serialize the identifier as a url string."""
+        return self.as_string(":")
+
+    @classmethod
+    def decode(cls, identifier: str) -> Self:
+        """Parse a SupernoteIdentifier form a url string."""
+        return cls.of(identifier, ":")
 
     @classmethod
     def folder(cls, config_entry_id: str, media_ids: list[int]) -> Self:
@@ -137,6 +147,61 @@ class SupernoteIdentifier:
     def note_page(cls, config_entry_id: str, media_ids: list[int]) -> Self:
         """Create an album SupernoteIdentifier."""
         return cls(config_entry_id, SupernoteIdentifierType.NOTE_PAGE, media_ids)
+
+
+@callback
+def async_register_http_views(hass: HomeAssistant) -> None:
+    """Register the http views."""
+    hass.http.register_view(ItemContentView(hass))
+
+
+class ItemContentView(HomeAssistantView):
+    """Returns media content for a specific media source item."""
+
+    url = "/api/supernote_cloud/item_content/{item_identifier}"
+    name = "api:supernote_cloud:item_content"
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        """Initialize the view."""
+        self.hass = hass
+
+    async def get(self, request: Request, item_identifier: str) -> StreamResponse:
+        """Start a GET request."""
+        try:
+            identifier = SupernoteIdentifier.decode(item_identifier)
+        except ValueError as err:
+            _LOGGER.error("Invalid identifier: %s", item_identifier)
+            return Response(status=400, text=str(err))
+
+        _LOGGER.debug("Fetching item content for %s", identifier)
+        if identifier.id_type != SupernoteIdentifierType.NOTE_PAGE:
+            msg = f"Invalid identifier type: {identifier}"
+            _LOGGER.error(msg)
+            return Response(status=400, text=msg)
+
+        if (
+            entry := self.hass.config_entries.async_entry_for_domain_unique_id(
+                DOMAIN,
+                identifier.config_entry_id,
+            )
+        ) is None:
+            msg = f"Could not find config entry for identifier: {identifier.config_entry_id}"
+            _LOGGER.error(msg)
+            return Response(status=400, text=msg)
+        store = entry.runtime_data
+
+        folder_contents = await store.get_folder_contents(identifier.parent_folder_id)
+        if folder_contents is None:
+            msg = f"Could not find folder contents for {identifier}"
+            _LOGGER.error(msg)
+            return Response(status=400, text=msg)
+        if (file_info := folder_contents.children.get(identifier.note_file_id)) is None:
+            msg = f"Could not find file {identifier.note_file_id} in parent {identifier.parent_folder_id}"
+            _LOGGER.error(msg)
+            return Response(status=400, text=msg)
+
+        content = await store.get_note_png(file_info, identifier.page_id)
+        return Response(body=content, content_type="image/png")
 
 
 async def async_get_media_source(hass: HomeAssistant) -> MediaSource:
@@ -161,9 +226,7 @@ class SupernoteCloudMediaSource(MediaSource):
         except ValueError as err:
             raise BrowseError(f"Could not parse identifier: {item.identifier}") from err
         return PlayMedia(
-            url=BACKUP_CONTENT_URL_FORMAT.format(
-                domain=DOMAIN, identifier=identifier.as_string()
-            ),
+            url=ItemContentView.url.format(item_identifier=identifier.encode()),
             mime_type="image/png",
         )
 
@@ -383,43 +446,3 @@ def _build_file(
         can_play=False,
         can_expand=True,
     )
-
-
-# def _build_media_item(
-#     identifier: SupernoteIdentifier,
-#     media_item: MediaItem,
-# ) -> BrowseMediaSource:
-#     """Build the node for an individual photo or video."""
-#     is_video = media_item.media_metadata and (
-#         media_item.media_metadata.video is not None
-#     )
-#     return BrowseMediaSource(
-#         domain=DOMAIN,
-#         identifier=identifier.as_string(),
-#         media_class=MediaClass.IMAGE if not is_video else MediaClass.VIDEO,
-#         media_content_type=MediaType.IMAGE if not is_video else MediaType.VIDEO,
-#         title=media_item.filename,
-#         can_play=is_video,
-#         can_expand=False,
-#     )
-
-
-# def _media_url(media_item: MediaItem, max_size: int) -> str:
-#     """Return a media item url with the specified max thumbnail size on the longest edge.
-
-#     See https://developers.google.com/photos/library/guides/access-media-items#base-urls
-#     """
-#     return f"{media_item.base_url}=h{max_size}"
-
-
-# def _video_url(media_item: MediaItem) -> str:
-#     """Return a video url for the item.
-
-#     See https://developers.google.com/photos/library/guides/access-media-items#base-urls
-#     """
-#     return f"{media_item.base_url}=dv"
-
-
-# def _cover_photo_url(album: Album, max_size: int) -> str:
-#     """Return a media item url for the cover photo of the album."""
-#     return f"{album.cover_photo_base_url}=h{max_size}"

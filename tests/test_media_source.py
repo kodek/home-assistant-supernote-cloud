@@ -182,13 +182,13 @@ async def test_browse_folders(
     media = await async_resolve_media(
         hass, f"{URI_SCHEME}{DOMAIN}/{page_path_prefix}/1", None
     )
-    assert media.url == f"/api/supernote_cloud/content/{page_path_prefix}/1"
-    assert media.mime_type == "image/png"
 
     client = await hass_client()
-    response = await client.get(media.url)
-    # TODO: Implement
-    assert response.status == HTTPStatus.NOT_FOUND
-    # assert response.status == HTTPStatus.OK, f"Response not matched: {response}"
-    # contents = await response.read()
-    # assert contents == CONTENT_BYTES
+    with patch(
+        "custom_components.supernote_cloud.store.store.LocalStore.get_note_png",
+        return_value=CONTENT_BYTES,
+    ):
+        response = await client.get(media.url)
+        assert response.status == HTTPStatus.OK, f"Response not matched: {response}"
+        contents = await response.read()
+        assert contents == CONTENT_BYTES

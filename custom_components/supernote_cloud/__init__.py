@@ -9,11 +9,13 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform, CONF_ACCESS_TOKEN
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import aiohttp_client
+from homeassistant.helpers.typing import ConfigType
 
 from .const import DOMAIN
 from .types import SupernoteCloudConfigEntry
 from .supernote_client.auth import SupernoteCloudClient, ConstantAuth, Client
 from .store.store import LocalStore, MetadataStore
+from .media_source import async_register_http_views
 
 __all__ = ["DOMAIN"]
 
@@ -22,6 +24,12 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS: tuple[Platform] = ()  # type: ignore[assignment]
 
 STORE_PATH = f".storage/{DOMAIN}"
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Set up the supernote_cloud component."""
+    async_register_http_views(hass)
+    return True
 
 
 async def async_setup_entry(
