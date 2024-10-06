@@ -53,8 +53,11 @@ async def test_no_config_entries(
 @pytest.mark.usefixtures("setup_integration")
 async def test_invalid_path(hass: HomeAssistant) -> None:
     """Test browsing to a path with an incorrect format."""
-    with pytest.raises(BrowseError, match="Invalid identifier"):
+    with pytest.raises(BrowseError, match="Could not parse identifier"):
         await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}/invalid-config-entry")
+
+    with pytest.raises(BrowseError, match="Could not find config entry"):
+        await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}/invalid-config-entry/f/0")
 
 
 @pytest.mark.usefixtures("setup_integration")
@@ -68,10 +71,10 @@ async def test_browse_invalid_path(hass: HomeAssistant) -> None:
         (ROOT_FOLDER_PATH, CONFIG_ENTRY_TITLE)
     ]
 
-    with pytest.raises(BrowseError, match="Invalid identifier"):
+    with pytest.raises(BrowseError, match="Could not parse identifier"):
         await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}/{CONFIG_ENTRY_ID}/f")
 
-    with pytest.raises(BrowseError, match="Invalid identifier"):
+    with pytest.raises(BrowseError, match="Could not parse identifier"):
         await async_browse_media(
             hass, f"{URI_SCHEME}{DOMAIN}/{CONFIG_ENTRY_ID}/q/some-id"
         )
@@ -192,3 +195,127 @@ async def test_browse_folders(
         assert response.status == HTTPStatus.OK, f"Response not matched: {response}"
         contents = await response.read()
         assert contents == CONTENT_BYTES
+
+
+@pytest.mark.usefixtures("setup_integration")
+async def test_browse_folder_as_file(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    hass_client: ClientSessionGenerator,
+) -> None:
+    """Test browsing with the wrong object time."""
+    browse = await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}")
+    assert browse.domain == DOMAIN
+    assert browse.identifier is None
+    assert browse.title == SOURCE_TITLE
+    assert [(child.identifier, child.title) for child in browse.children] == [
+        (ROOT_FOLDER_PATH, CONFIG_ENTRY_TITLE)
+    ]
+
+    # Browse folders
+    aioclient_mock.post(
+        "https://cloud.supernote.com/api/file/list/query",
+        json={
+            "success": True,
+            "total": 3,
+            "size": 10,
+            "pages": 1,
+            "userFileVOList": [
+                {
+                    "id": "1111111111111111",
+                    "directoryId": "222222222",
+                    "fileName": "Folder title",
+                    "isFolder": "Y",
+                    "createTime": 1727759196000,
+                    "updateTime": 1727759196000,
+                },
+            ],
+        },
+    )
+
+    browse = await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}/{ROOT_FOLDER_PATH}")
+    assert browse.domain == DOMAIN
+    assert browse.identifier == ROOT_FOLDER_PATH
+    assert browse.title == CONFIG_ENTRY_TITLE
+
+    # Browse contents of a subfolder
+    aioclient_mock.clear_requests()
+    aioclient_mock.post(
+        "https://cloud.supernote.com/api/file/list/query",
+        json={
+            "success": True,
+            "total": 10,
+            "size": 20,
+            "pages": 1,
+            "userFileVOList": [
+                {
+                    "id": "33333333333",
+                    "directoryId": "222222222",
+                    "fileName": "Note title.note",
+                    "isFolder": "N",
+                    "size": 12345,
+                    "md5": "abcdefabcdefabcdefabcdefabcdef",
+                    "createTime": 1727759196000,
+                    "updateTime": 1727759196000,
+                },
+            ],
+        },
+    )
+
+    invalid_note_path = f"{CONFIG_ENTRY_ID}/n/1111111111111111/1111111111111111"
+
+    with pytest.raises(BrowseError, match="Could not find note file"):
+        await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}/{invalid_note_path}")
+
+
+@pytest.mark.usefixtures("setup_integration")
+async def test_item_content_invalid_identifier(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    hass_client: ClientSessionGenerator,
+) -> None:
+    """Test fetching content for invalid ids."""
+
+    client = await hass_client()
+    response = await client.get("/api/supernote_cloud/item_content/invalid")
+    assert response.status == HTTPStatus.BAD_REQUEST
+
+    client = await hass_client()
+    response = await client.get(
+        f"/api/supernote_cloud/item_content/{CONFIG_ENTRY_ID}:n:1111111111111111:33333333333"
+    )
+    assert response.status == HTTPStatus.BAD_REQUEST
+
+    client = await hass_client()
+    response = await client.get(
+        "/api/supernote_cloud/item_content/invalid-entry:p:1111111111111111:33333333333:0"
+    )
+    assert response.status == HTTPStatus.BAD_REQUEST
+
+    aioclient_mock.post(
+        "https://cloud.supernote.com/api/file/list/query",
+        json={
+            "success": True,
+            "total": 10,
+            "size": 20,
+            "pages": 1,
+            "userFileVOList": [
+                {
+                    "id": "33333333333",
+                    "directoryId": "222222222",
+                    "fileName": "Note title.note",
+                    "isFolder": "N",
+                    "size": 12345,
+                    "md5": "abcdefabcdefabcdefabcdefabcdef",
+                    "createTime": 1727759196000,
+                    "updateTime": 1727759196000,
+                },
+            ],
+        },
+    )
+
+    client = await hass_client()
+    response = await client.get(
+        f"/api/supernote_cloud/item_content/{CONFIG_ENTRY_ID}:p:1111111111111111:9999999999:1"
+    )
+    assert response.status == HTTPStatus.BAD_REQUEST

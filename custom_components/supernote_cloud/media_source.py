@@ -69,8 +69,6 @@ class SupernoteIdentifier:
     @property
     def parent_folder_id(self) -> int | None:
         """Return the parent node media id for the identifier."""
-        if self.is_root:
-            return None
         if self.id_type == SupernoteIdentifierType.NOTE_PAGE:
             if len(self.media_id_path) < 3:
                 raise ValueError(
@@ -78,9 +76,7 @@ class SupernoteIdentifier:
                 )
             return self.media_id_path[-3]
         if len(self.media_id_path) < 2:
-            raise ValueError(
-                f"Invalid identifier did not contain a parent folder id: {self}"
-            )
+            return None
         return self.media_id_path[-2]
 
     @property
@@ -117,11 +113,11 @@ class SupernoteIdentifier:
         """Parse a SupernoteIdentifier form a string."""
         parts = identifier.split(separator, maxsplit=2)
         if len(parts) != 3:
-            raise BrowseError(f"Invalid identifier: {identifier}")
+            raise ValueError(f"Invalid identifier: {identifier}")
         try:
             path_parts = [int(p) for p in parts[2].split(separator)]
         except ValueError as err:
-            raise BrowseError(f"Invalid identifier: {identifier}") from err
+            raise ValueError(f"Invalid identifier: {identifier}") from err
         return cls(parts[0], SupernoteIdentifierType.of(parts[1]), path_parts)
 
     def encode(self) -> str:
@@ -258,7 +254,10 @@ class SupernoteCloudMediaSource(MediaSource):
             )
 
         # Determine the configuration entry for this item
-        identifier = SupernoteIdentifier.of(item.identifier)
+        try:
+            identifier = SupernoteIdentifier.of(item.identifier)
+        except ValueError as err:
+            raise BrowseError(f"Could not parse identifier: {item.identifier}") from err
         _LOGGER.debug("Browsing media for %s", identifier)
         if identifier.id_type is None:
             raise BrowseError(
