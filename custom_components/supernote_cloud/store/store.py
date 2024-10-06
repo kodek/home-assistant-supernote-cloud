@@ -6,7 +6,7 @@ import asyncio
 import io
 import pathlib
 import logging
-from typing import cast
+import hashlib
 
 import supernotelib
 
@@ -14,7 +14,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from ..supernote_client.auth import SupernoteCloudClient
-from .model import FolderContents, FileInfo, FolderInfo
+from .model import FolderContents, FileInfo, FolderInfo, IS_FOLDER
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -76,14 +76,14 @@ class LocalStore:
 
         folder_contents = await self._metadata_store.get_folder_contents(folder_id)
         if folder_contents and not folder_contents.is_expired:
-            _LOGGER.debug("Serving %s from local cache %s", folder_id, folder_contents)
+            _LOGGER.debug("Serving %s from local cache", folder_id)
             return folder_contents
 
         # Fetch the folder from the cloud
         file_list_response = await self._client.file_list(folder_id)
         folder_contents = FolderContents(folder_id=folder_id)
         for file in file_list_response.file_list:
-            if file.is_folder == "Y":
+            if file.is_folder == IS_FOLDER:
                 new_folder = FolderInfo(
                     folder_id=file.id,
                     parent_folder_id=file.directory_id,
@@ -104,7 +104,6 @@ class LocalStore:
                 )
                 folder_contents.file_children.append(new_file)
 
-        # Update the cache
         _LOGGER.debug("Updating cache for %s", folder_contents)
         await self._metadata_store.set_folder_contents(folder_contents)
 
@@ -127,7 +126,9 @@ class LocalStore:
         # If a png version of the note file does not exist, call the conversion
         # function on the note file on the fly and persit.
         local_path = self._get_local_file_path(local_file)
-        local_png_path = (local_path.with_suffix("") / f"{page_num}-{page_id}").with_suffix(PNG_SUFFIX)
+        local_png_path = (
+            local_path.with_suffix("") / f"{page_num}-{page_id}"
+        ).with_suffix(PNG_SUFFIX)
 
         def _read_png() -> bytes | None:
             local_png_path.parent.mkdir(exist_ok=True)
@@ -162,28 +163,21 @@ class LocalStore:
             raise ValueError("Cannot get pages for non-note file")
 
         local_path = self._get_local_file_path(local_file)
-        local_metadata_path = local_path.with_suffix(METADATA_SUFFIX)
 
         def _get_or_invalidate() -> bytes | None:
             local_path.parent.mkdir(exist_ok=True)
 
             # Read the existing metadata for the note file and see if the content
             # is already cached on local disk.
-            if local_metadata_path.exists():
-                with local_metadata_path.open("r") as metadata_file:
-                    existing_metadata = FileInfo.from_json(metadata_file.read())
-                    if existing_metadata.md5 == local_file.md5:
-                        with local_path.open("rb") as note_file:
-                            _LOGGER.debug(
-                                "Serving %s from local cache", local_file.name
-                            )
-                            return note_file.read()
-                    else:
-                        _LOGGER.debug("MD5 updated for %s", local_file.name)
-
-                # Erase any existing metadata contents since they are no longer up
-                # to date.
-                local_metadata_path.unlink(missing_ok=True)
+            if local_path.exists():
+                with local_path.open("rb") as note_file:
+                    contents = note_file.read()
+                    md5sum = hashlib.md5(contents).hexdigest()
+                    if md5sum == local_file.md5:
+                        _LOGGER.debug("Serving %s from local cache", local_file.name)
+                        return contents
+                # The local file is out of date, invalidate it.
+                local_path.unlink()
             return None
 
         loop = asyncio.get_running_loop()
@@ -198,10 +192,14 @@ class LocalStore:
             with local_path.open("wb") as note_file:
                 note_file.write(contents)
 
-            # Write the metadata
-            with local_metadata_path.open("w") as metadata_file:
-                metadata_file.write(cast(str, local_file.to_json()))
-
         await loop.run_in_executor(None, _write_contents)
+
+        md5sum = hashlib.md5(contents).hexdigest()
+        if md5sum != local_file.md5:
+            _LOGGER.error(
+                "Downloaded file had different hash from server (%s) != (%s)",
+                md5sum,
+                local_file.md5,
+            )
 
         return contents

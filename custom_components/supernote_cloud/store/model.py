@@ -7,6 +7,7 @@ from mashumaro.mixins.json import DataClassJSONMixin
 
 
 MAX_CACHE_LIFETIME = datetime.timedelta(hours=1)
+IS_FOLDER = "Y"
 
 
 @dataclass
