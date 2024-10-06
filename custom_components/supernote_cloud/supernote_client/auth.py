@@ -21,7 +21,7 @@ from .api_model import (
     QueryUserResponse,
     QueryUserRequest,
 )
-from .exceptions import ApiException, AuthException
+from .exceptions import ApiException
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -94,10 +94,7 @@ class Client:
                 **HEADERS,
             }
         if self._auth and ACCESS_TOKEN not in headers:
-            try:
-                access_token = await self._auth.async_get_access_token()
-            except ClientError as err:
-                raise AuthException(f"Access token failure: {err}") from err
+            access_token = await self._auth.async_get_access_token()
             headers[ACCESS_TOKEN] = access_token
         if not (url.startswith("http://") or url.startswith("https://")):
             url = f"{self._host}/{url}"

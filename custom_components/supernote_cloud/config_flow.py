@@ -32,7 +32,7 @@ from .supernote_client.auth import (
     SupernoteCloudClient,
     ConstantAuth,
 )
-from .supernote_client.exceptions import SupernoteException, AuthException, ApiException
+from .supernote_client.exceptions import SupernoteException, ApiException
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,9 +50,6 @@ async def validate_user_input(
         access_token = await login_client.login(
             user_input[CONF_USERNAME], user_input[CONF_PASSWORD]
         )
-    except AuthException as err:
-        _LOGGER.debug("Login auth exception: %s", err)
-        raise SchemaFlowError("auth_error") from err
     except (ApiException, SupernoteException) as err:
         _LOGGER.debug("Login api exception: %s", err)
         raise SchemaFlowError("api_error") from err
@@ -63,9 +60,6 @@ async def validate_user_input(
     )
     try:
         user_response = await supernote_client.query_user(user_input[CONF_USERNAME])
-    except AuthException as err:
-        _LOGGER.debug("Query auth exception: %s", err)
-        raise SchemaFlowError("auth_error") from err
     except (ApiException, SupernoteException) as err:
         _LOGGER.debug("Query api exception: %s", err)
         raise SchemaFlowError("api_error") from err
