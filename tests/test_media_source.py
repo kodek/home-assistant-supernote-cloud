@@ -175,8 +175,8 @@ async def test_browse_folders(
         assert browse.title == "Note title.note"
         page_path_prefix = f"{CONFIG_ENTRY_ID}/p/1111111111111111/33333333333"
         assert [(child.identifier, child.title) for child in browse.children] == [
-            (f"{page_path_prefix}/1", "Page 1"),
-            (f"{page_path_prefix}/2", "Page 2"),
+            (f"{page_path_prefix}/0", "Page 1"),
+            (f"{page_path_prefix}/1", "Page 2"),
         ]
 
     media = await async_resolve_media(
