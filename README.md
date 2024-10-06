@@ -18,12 +18,12 @@ Library for efficient backup based on:
 - [x] Authentication library and configuration flow
 - [x] Media player skeleton of directory contents
 - [ ] Tests for store
-- [ ] read cached meta.json from disk
-- [ ] tests for png fetching
-- [ ] Syncing of note contents
-- [ ] cache backup metadata on disk to reduce api calls
+- [x] read cached meta.json from disk
+- [x ] tests for png fetching
+- [x] Syncing of note contents
+- [x] cache backup metadata on disk to reduce api calls
 - [ ] handle non .note files
-- [ ] Extracting png content
+- [x] Extracting png content
 - [ ] async iterator to page through contents
 - [ ] concurrency fixes
-- [ ] fully async io
+- [x] fully async io
