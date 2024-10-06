@@ -331,9 +331,6 @@ class SupernoteCloudMediaSource(MediaSource):
             source.children = children
             return source
 
-        if identifier.id_type is SupernoteIdentifierType.NOTE_PAGE:
-            raise ValueError("Cannot browse note pages")
-
         if identifier.parent_folder_id is None:
             raise ValueError("Cannot browse root folder as a note")
 
@@ -342,13 +339,42 @@ class SupernoteCloudMediaSource(MediaSource):
             identifier.parent_folder_id
         )
         if (
-            file_info := parent_folder_contents.children.get(identifier.media_id)
-        ) is None:
-            raise BrowseError(
-                f"Could not find note file {identifier.media_id} in parent {identifier.parent_folder_id}"
+            not identifier.note_file_id
+            or (
+                file_info := parent_folder_contents.children.get(
+                    identifier.note_file_id
+                )
             )
-        if not isinstance(file_info, FileInfo):
-            raise BrowseError(f"Expected file but got {file_info}")
+            is None
+        ):
+            raise BrowseError(
+                f"Could not find note file {identifier.note_file_id} in parent {identifier.parent_folder_id}"
+            )
+        if not isinstance(file_info, FileInfo) or identifier.page_id is None:
+            raise BrowseError(
+                f"Expected file but got {file_info} or no page_id {identifier}"
+            )
+
+        page_names = await store.get_note_page_names(file_info)
+        _LOGGER.debug("Note has %s pages", len(page_names))
+
+        if identifier.id_type is SupernoteIdentifierType.NOTE_PAGE:
+            if identifier.page_id > len(page_names):
+                raise BrowseError(
+                    f"Invalid page id {identifier.page_id} for note {identifier}"
+                )
+            page_name = page_names[identifier.page_id]
+            return _build_page(
+                SupernoteIdentifier.note_page(
+                    identifier.config_entry_id,
+                    [
+                        identifier.parent_folder_id,
+                        identifier.note_file_id,
+                        identifier.page_id,
+                    ],
+                ).as_string(),
+                page_name,
+            )
 
         source = _build_file(
             entry_unique_id,
@@ -356,20 +382,13 @@ class SupernoteCloudMediaSource(MediaSource):
             file_info.file_id,
             file_info.name,
         )
-        page_names = await store.get_note_page_names(file_info)
-        _LOGGER.debug("Note has %s pages", len(page_names))
         source.children = [
-            BrowseMediaSource(
-                domain=DOMAIN,
-                identifier=SupernoteIdentifier.note_page(
+            _build_page(
+                SupernoteIdentifier.note_page(
                     identifier.config_entry_id,
                     [identifier.parent_folder_id, identifier.media_id, page_id],
                 ).as_string(),
-                media_class=MediaClass.APP,
-                media_content_type=MediaType.APP,
-                title=page_name,
-                can_play=True,
-                can_expand=False,
+                page_name,
             )
             for page_id, page_name in enumerate(page_names)
         ]
@@ -444,4 +463,20 @@ def _build_file(
         title=name,
         can_play=False,
         can_expand=True,
+    )
+
+
+def _build_page(
+    identifier_str: str,
+    page_name: str,
+) -> BrowseMediaSource:
+    """Build a media item node for a page."""
+    return BrowseMediaSource(
+        domain=DOMAIN,
+        identifier=identifier_str,
+        media_class=MediaClass.APP,
+        media_content_type=MediaType.APP,
+        title=page_name,
+        can_play=True,
+        can_expand=False,
     )

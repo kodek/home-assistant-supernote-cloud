@@ -182,6 +182,15 @@ async def test_browse_folders(
             (f"{page_path_prefix}/1", "Page 2"),
         ]
 
+        # Browse into a note page
+        browse = await async_browse_media(
+            hass, f"{URI_SCHEME}{DOMAIN}/{page_path_prefix}/1"
+        )
+        assert browse.domain == DOMAIN
+        assert browse.identifier == f"{page_path_prefix}/1"
+        assert browse.title == "Page 2"
+        assert not browse.children
+
     media = await async_resolve_media(
         hass, f"{URI_SCHEME}{DOMAIN}/{page_path_prefix}/1", None
     )
