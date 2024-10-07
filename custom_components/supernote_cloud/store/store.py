@@ -195,10 +195,11 @@ class NotebookFile:
         self._note_contents = note_contents
         self._local_file_path = local_file_path
         self._notebook = supernotelib.load(io.BytesIO(note_contents), policy=POLICY)
+        note_name_base = pathlib.Path(note_name).stem
         pages = []
         for page_num in range(self._notebook.get_total_pages()):
             page_id = self._notebook.get_page(page_num).get_pageid()
-            page_name = f"{note_name}-{page_num:03d}-{page_id}"
+            page_name = f"{note_name_base}-{page_num:03d}-{page_id}"
             pages.append(page_name)
         self._pages = pages
 
