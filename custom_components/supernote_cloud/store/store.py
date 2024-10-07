@@ -163,7 +163,7 @@ class LocalStore:
         loop = asyncio.get_running_loop()
         contents = await loop.run_in_executor(None, _get_or_invalidate)
         if contents:
-            return NotebookFile(contents, local_path)
+            return NotebookFile(contents, local_file.name, local_path)
 
         _LOGGER.debug("Downloading %s", local_file.name)
         contents = await self._client.file_download(local_file.file_id)
@@ -182,13 +182,15 @@ class LocalStore:
                 local_file.md5,
             )
 
-        return NotebookFile(contents, local_path)
+        return NotebookFile(contents, local_file.name, local_path)
 
 
 class NotebookFile:
     """Representation of a note file."""
 
-    def __init__(self, note_contents: bytes, local_file_path: pathlib.Path) -> None:
+    def __init__(
+        self, note_contents: bytes, note_name: str, local_file_path: pathlib.Path
+    ) -> None:
         """Initialize the notebook."""
         self._note_contents = note_contents
         self._local_file_path = local_file_path
@@ -196,7 +198,7 @@ class NotebookFile:
         pages = []
         for page_num in range(self._notebook.get_total_pages()):
             page_id = self._notebook.get_page(page_num).get_pageid()
-            page_name = f"{page_num:03d}-{page_id}"
+            page_name = f"{note_name}-{page_num:03d}-{page_id}"
             pages.append(page_name)
         self._pages = pages
 

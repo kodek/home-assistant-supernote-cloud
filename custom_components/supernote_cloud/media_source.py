@@ -350,7 +350,7 @@ class SupernoteCloudMediaSource(MediaSource):
             raise BrowseError(
                 f"Could not find note file {identifier.note_file_id} in parent {identifier.parent_folder_id}"
             )
-        if not isinstance(file_info, FileInfo) or identifier.page_id is None:
+        if not isinstance(file_info, FileInfo):
             raise BrowseError(
                 f"Expected file but got {file_info} or no page_id {identifier}"
             )
@@ -359,7 +359,7 @@ class SupernoteCloudMediaSource(MediaSource):
         _LOGGER.debug("Note has %s pages", len(page_names))
 
         if identifier.id_type is SupernoteIdentifierType.NOTE_PAGE:
-            if identifier.page_id > len(page_names):
+            if identifier.page_id is None or identifier.page_id > len(page_names):
                 raise BrowseError(
                     f"Invalid page id {identifier.page_id} for note {identifier}"
                 )
