@@ -7,6 +7,7 @@ import io
 import pathlib
 import logging
 import hashlib
+from typing import Any
 
 import supernotelib
 
@@ -36,7 +37,7 @@ class MetadataStore:
 
     def __init__(self, hass: HomeAssistant, storage_path: pathlib.Path) -> None:
         """Initialize the store."""
-        self._store = Store(
+        self._store: Store[dict[str, Any]] = Store(
             hass,
             version=STORAGE_VERSION,
             key=str(storage_path / "folder_contents.json"),

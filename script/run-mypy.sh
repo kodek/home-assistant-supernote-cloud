@@ -9,4 +9,4 @@ if [ -f "${my_path}/venv/bin/activate" ]; then
   . "${my_path}/venv/bin/activate"
 fi
 
-mypy ${my_path}
+mypy ${my_path}/custom_components

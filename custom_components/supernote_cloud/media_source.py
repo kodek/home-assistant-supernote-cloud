@@ -403,15 +403,17 @@ class SupernoteCloudMediaSource(MediaSource):
 
     def _async_config_entry(self, config_entry_id: str) -> SupernoteCloudConfigEntry:
         """Return a config entry with the specified id."""
-        entry = self.hass.config_entries.async_entry_for_domain_unique_id(
-            DOMAIN,
-            config_entry_id,
+        entry: SupernoteCloudConfigEntry | None = (
+            self.hass.config_entries.async_entry_for_domain_unique_id(
+                DOMAIN,
+                config_entry_id,
+            )
         )
         if not entry:
             raise BrowseError(
                 f"Could not find config entry for identifier: {config_entry_id}"
             )
-        return entry  # type: ignore[no-any-return]
+        return entry
 
 
 def _build_account(
