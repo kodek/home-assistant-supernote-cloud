@@ -23,6 +23,7 @@ from homeassistant.core import HomeAssistant, callback
 from . import SupernoteCloudConfigEntry
 from .const import DOMAIN
 from .store.model import FileInfo, FolderInfo
+from .supernote_client.exceptions import ApiException
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -282,9 +283,14 @@ class SupernoteCloudMediaSource(MediaSource):
                     raise BrowseError(
                         f"Invalid identifier did not contain a parent folder id: {identifier}"
                     )
-                parent_folder_contents = await store.get_folder_contents(
-                    identifier.parent_folder_id
-                )
+                try:
+                    parent_folder_contents = await store.get_folder_contents(
+                        identifier.parent_folder_id
+                    )
+                except ApiException as err:
+                    raise BrowseError(
+                        f"Failed to fetch parent folder contents: {err}"
+                    ) from err
                 _LOGGER.debug("Contents: %s", parent_folder_contents)
                 if (
                     folder_info := parent_folder_contents.children.get(
@@ -304,7 +310,10 @@ class SupernoteCloudMediaSource(MediaSource):
                 )
 
             # Add the children of the folder
-            folder_contents = await store.get_folder_contents(identifier.media_id)
+            try:
+                folder_contents = await store.get_folder_contents(identifier.media_id)
+            except ApiException as err:
+                raise BrowseError(f"Failed to fetch folder contents: {err}") from err
             children = []
             for child in folder_contents.children.values():
                 _LOGGER.debug("Child: %s", child)
@@ -335,9 +344,12 @@ class SupernoteCloudMediaSource(MediaSource):
             raise ValueError("Cannot browse root folder as a note")
 
         # We are browsing a note file
-        parent_folder_contents = await store.get_folder_contents(
-            identifier.parent_folder_id
-        )
+        try:
+            parent_folder_contents = await store.get_folder_contents(
+                identifier.parent_folder_id
+            )
+        except ApiException as err:
+            raise BrowseError(f"Failed to fetch parent folder contents: {err}") from err
         if (
             not identifier.note_file_id
             or (

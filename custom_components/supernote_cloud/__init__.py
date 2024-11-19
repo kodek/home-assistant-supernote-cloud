@@ -6,14 +6,18 @@ import logging
 import pathlib
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform, CONF_ACCESS_TOKEN
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import aiohttp_client
 from homeassistant.helpers.typing import ConfigType
 
 from .const import DOMAIN
+from .auth import ConfigEntryAuth
 from .types import SupernoteCloudConfigEntry
-from .supernote_client.auth import SupernoteCloudClient, ConstantAuth, Client
+from .supernote_client.auth import (
+    SupernoteCloudClient,
+    Client,
+)
 from .store.store import LocalStore, MetadataStore
 from .media_source import async_register_http_views
 
@@ -39,10 +43,16 @@ async def async_setup_entry(
 
     store_path = pathlib.Path(hass.config.path(STORE_PATH)) / str(entry.entry_id)
     session = aiohttp_client.async_get_clientsession(hass)
-    access_token = entry.options[CONF_ACCESS_TOKEN]
-    client = Client(session, auth=ConstantAuth(access_token))
+    client = Client(session, auth=ConfigEntryAuth(hass, entry, session))
     supernote_client = SupernoteCloudClient(client)
-    store = LocalStore(MetadataStore(hass, store_path), store_path, supernote_client)
+
+    def reauth_cb() -> None:
+        _LOGGER.debug("Reauthenticating")
+        entry.async_start_reauth(hass)
+
+    store = LocalStore(
+        MetadataStore(hass, store_path), store_path, supernote_client, reauth_cb
+    )
 
     # run in executor thread
     def mkdir() -> None:

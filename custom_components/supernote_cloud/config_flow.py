@@ -8,6 +8,7 @@ import logging
 
 import voluptuous as vol
 
+from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.helpers import selector
 from homeassistant.helpers.schema_config_entry_flow import (
     SchemaCommonFlowHandler,
@@ -15,6 +16,7 @@ from homeassistant.helpers.schema_config_entry_flow import (
     SchemaFlowFormStep,
     SchemaFlowError,
 )
+from homeassistant.util import dt as dt_util
 from homeassistant.helpers.aiohttp_client import (
     async_get_clientsession,
 )
@@ -25,7 +27,7 @@ from homeassistant.const import (
     CONF_UNIQUE_ID,
 )
 
-from .const import DOMAIN, CONF_API_USERNAME
+from .const import DOMAIN, CONF_API_USERNAME, CONF_TOKEN_TIMESTAMP
 from .supernote_client.auth import (
     LoginClient,
     Client,
@@ -70,6 +72,8 @@ async def validate_user_input(
         CONF_ACCESS_TOKEN: access_token,
         CONF_UNIQUE_ID: str(user_response.user_id),
         CONF_API_USERNAME: user_response.user_name,
+        CONF_PASSWORD: user_input[CONF_PASSWORD],
+        CONF_TOKEN_TIMESTAMP: dt_util.now().timestamp(),
     }
 
 
@@ -108,3 +112,32 @@ class SupernoteCloudConfigFlowHandler(SchemaConfigFlowHandler, domain=DOMAIN):
     def async_config_entry_title(self, options: Mapping[str, Any]) -> str:
         """Return config entry title."""
         return cast(str, options[CONF_API_USERNAME])
+
+    async def async_step_reauth(
+        self, entry_data: Mapping[str, Any]
+    ) -> ConfigFlowResult:
+        """Perform reauth upon an API authentication error."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Dialog that informs the user that reauth is required."""
+        if user_input is None:
+            return self.async_show_form(
+                step_id="reauth_confirm",
+                data_schema=vol.Schema({}),
+            )
+        return await self.async_step_user()
+
+    # async def async_oauth_create_entry(self, data: dict) -> ConfigFlowResult:
+    #     """Create an oauth config entry or update existing entry for reauth."""
+    #     data[CONF_TOKEN_TIMESTAMP] = dt_util.now().timestamp()
+    #     if self.source == SOURCE_REAUTH:
+    #         self._abort_if_unique_id_mismatch()
+    #         return self.async_update_reload_and_abort(
+    #             self._get_reauth_entry(),
+    #             data_updates=data,
+    #         )
+    #     self._abort_if_unique_id_configured()
+    #     return await super().async_oauth_create_entry(data)  # type: ignore[no-any-return]

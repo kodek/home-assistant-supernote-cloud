@@ -8,6 +8,7 @@ import pathlib
 import logging
 import hashlib
 from typing import Any
+from collections.abc import Callable
 
 import supernotelib
 
@@ -15,6 +16,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from ..supernote_client.auth import SupernoteCloudClient
+from ..supernote_client.exceptions import UnauthorizedException
 from .model import FolderContents, FileInfo, FolderInfo, IS_FOLDER
 
 _LOGGER = logging.getLogger(__name__)
@@ -66,11 +68,13 @@ class LocalStore:
         metadata_store: MetadataStore,
         storage_path: pathlib.Path,
         client: SupernoteCloudClient,
+        reauth_cb: Callable[[], None],
     ):
         """Initialize the store."""
         self._metadata_store = metadata_store
         self._storage_path = storage_path
         self._client = client
+        self._reauth_cb = reauth_cb
 
     async def get_folder_contents(self, folder_id: int) -> FolderContents:
         """Fetch the folder information."""
@@ -81,7 +85,11 @@ class LocalStore:
             return folder_contents
 
         # Fetch the folder from the cloud
-        file_list_response = await self._client.file_list(folder_id)
+        try:
+            file_list_response = await self._client.file_list(folder_id)
+        except UnauthorizedException as err:
+            self._reauth_cb()
+            raise err
         folder_contents = FolderContents(folder_id=folder_id)
         for file in file_list_response.file_list:
             if file.is_folder == IS_FOLDER:
@@ -167,7 +175,11 @@ class LocalStore:
             return NotebookFile(contents, local_file.name, local_path)
 
         _LOGGER.debug("Downloading %s", local_file.name)
-        contents = await self._client.file_download(local_file.file_id)
+        try:
+            contents = await self._client.file_download(local_file.file_id)
+        except UnauthorizedException as err:
+            self._reauth_cb()
+            raise err
 
         def _write_contents() -> None:
             with local_path.open("wb") as note_file:

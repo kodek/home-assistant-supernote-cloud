@@ -7,3 +7,7 @@ class SupernoteException(Exception):
 
 class ApiException(SupernoteException):
     """API exception."""
+
+
+class UnauthorizedException(ApiException):
+    """Authentication exception."""

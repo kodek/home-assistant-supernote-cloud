@@ -11,6 +11,7 @@ from homeassistant.components.media_source import (
     async_resolve_media,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.setup import async_setup_component
 
 from custom_components.supernote_cloud.const import DOMAIN
@@ -328,3 +329,37 @@ async def test_item_content_invalid_identifier(
         f"/api/supernote_cloud/item_content/{CONFIG_ENTRY_ID}:p:1111111111111111:9999999999:1"
     )
     assert response.status == HTTPStatus.BAD_REQUEST
+
+
+@pytest.mark.usefixtures("setup_integration")
+async def test_authentication_error(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    hass_client: ClientSessionGenerator,
+    config_entry: MockConfigEntry,
+) -> None:
+    """Test browsing the top level folder list."""
+    assert config_entry.state is ConfigEntryState.LOADED
+
+    browse = await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}")
+    assert browse.domain == DOMAIN
+    assert browse.identifier is None
+    assert browse.title == SOURCE_TITLE
+    assert [(child.identifier, child.title) for child in browse.children] == [
+        (ROOT_FOLDER_PATH, CONFIG_ENTRY_TITLE)
+    ]
+
+    # Browse folders
+    aioclient_mock.post(
+        "https://cloud.supernote.com/api/file/list/query",
+        status=HTTPStatus.UNAUTHORIZED,
+    )
+
+    with pytest.raises(BrowseError, match="Unauthorized"):
+        await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}/{ROOT_FOLDER_PATH}")
+        await hass.async_block_till_done()
+
+    flows = hass.config_entries.flow.async_progress()
+    assert len(flows) == 1
+    result = flows[0]
+    assert result["step_id"] == "reauth_confirm"

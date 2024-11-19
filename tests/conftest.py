@@ -9,6 +9,7 @@ import pytest
 from homeassistant.const import Platform, CONF_ACCESS_TOKEN
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
+from homeassistant.util import dt as dt_util
 
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 from pytest_homeassistant_custom_component.common import (
@@ -17,6 +18,7 @@ from pytest_homeassistant_custom_component.common import (
 
 from custom_components.supernote_cloud.const import (
     DOMAIN,
+    CONF_TOKEN_TIMESTAMP,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -64,10 +66,10 @@ async def mock_config_entry(
     config_entry = MockConfigEntry(
         unique_id=CONFIG_ENTRY_ID,
         title=CONFIG_ENTRY_TITLE,
-        data={},
         domain=DOMAIN,
         options={
             CONF_ACCESS_TOKEN: "access-token-1",
+            CONF_TOKEN_TIMESTAMP: dt_util.now().timestamp(),
         },
     )
     config_entry.add_to_hass(hass)
