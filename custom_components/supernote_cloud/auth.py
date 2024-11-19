@@ -51,6 +51,8 @@ class ConfigEntryAuth(AbstractAuth):
 
     async def _refresh_access_token(self) -> None:
         """Refresh access token."""
+        if CONF_PASSWORD not in self._entry.options:
+            return
         try:
             new_token = await self._login_client.login(
                 self._entry.options[CONF_USERNAME], self._entry.options[CONF_PASSWORD]
