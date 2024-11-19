@@ -28,14 +28,14 @@ Library for efficient backup based on:
 
 - [x] Authentication library and configuration flow
 - [x] Media player skeleton of directory contents
-- [ ] Tests for store
+- [x] Tests for store
 - [x] read cached meta.json from disk
 - [x] tests for png fetching
 - [x] Syncing of note contents
 - [x] cache backup metadata on disk to reduce api calls
 - [ ] handle non .note files
 - [x] Extracting png content
-- [ ] async iterator to page through contents
-- [ ] concurrency fixes
+- [x] async iterator to page through contents
+- [x] concurrency fixes
 - [x] fully async io
-- [ ] etag support
+- [ ] invalidate .png files when the notebook contents chnage
