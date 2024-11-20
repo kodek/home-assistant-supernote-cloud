@@ -209,7 +209,9 @@ class LocalStore:
                 local_file.md5,
             )
 
-        return NotebookFile(contents, local_file.name, local_path)
+        notebook = NotebookFile(contents, local_file.name, local_path)
+        await notebook.clear_png_cache()
+        return notebook
 
 
 class NotebookFile:
@@ -274,3 +276,16 @@ class NotebookFile:
 
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, _read_png)
+
+    async def clear_png_cache(self) -> None:
+        """Read the PNG contents of a note file."""
+
+        def _clear_pngs() -> None:
+            """All pngs  pages of the notebook."""
+            for page_num in range(self._notebook.get_total_pages()):
+                png_path = self.local_png_path(page_num)
+                if png_path.exists():
+                    png_path.unlink()
+
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, _clear_pngs)
