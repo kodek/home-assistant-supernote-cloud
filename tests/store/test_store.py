@@ -142,9 +142,11 @@ async def test_get_note_pages(
     await local_store.get_note_png(local_file, 0)
 
 
-
 async def test_get_note_pages_from_cache(
-    client: Mock, local_store: LocalStore, store_path: pathlib.Path, note_contents: bytes
+    client: Mock,
+    local_store: LocalStore,
+    store_path: pathlib.Path,
+    note_contents: bytes,
 ) -> None:
     """Test getting note page names and content."""
 
