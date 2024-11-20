@@ -38,4 +38,4 @@ Library for efficient backup based on:
 - [x] async iterator to page through contents
 - [x] concurrency fixes
 - [x] fully async io
-- [ ] invalidate .png files when the notebook contents chnage
+- [x] invalidate .png files when the notebook contents change
