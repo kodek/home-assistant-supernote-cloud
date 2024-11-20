@@ -165,6 +165,7 @@ class LocalStore:
             raise ValueError("Cannot get pages for non-note file")
 
         local_path = self._get_local_file_path(local_file)
+        _LOGGER.debug("Local path: %s", local_path)
 
         def _get_or_invalidate() -> bytes | None:
             local_path.parent.mkdir(exist_ok=True)

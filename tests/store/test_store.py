@@ -140,3 +140,32 @@ async def test_get_note_pages(
 
     # We don't verify the actual page contents
     await local_store.get_note_png(local_file, 0)
+
+
+
+async def test_get_note_pages_from_cache(
+    client: Mock, local_store: LocalStore, store_path: pathlib.Path, note_contents: bytes
+) -> None:
+    """Test getting note page names and content."""
+
+    local_file = FileInfo(
+        file_id=1234,
+        parent_folder_id=0,
+        name="Guitar.note",
+        md5="77d180ea291127ee53b6a0b509e33f2a",  # MD5 of Guitar.note
+        size=5,
+        create_time=0,
+        update_time=0,
+    )
+    local_path = store_path / "0" / "Guitar.note"
+    local_path.parent.mkdir(parents=True)
+    local_path.write_bytes(note_contents)
+
+    result = await local_store.get_note_page_names(local_file)
+    assert result == [
+        "Guitar-000-P20231228174201877470DZj4cQ3c93Wi",
+        "Guitar-001-P20240128210859017639qfzFJkp6gj2V",
+    ]
+
+    # We don't verify the actual page contents
+    await local_store.get_note_png(local_file, 0)
