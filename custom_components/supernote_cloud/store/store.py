@@ -9,6 +9,7 @@ import logging
 import hashlib
 from typing import Any
 from collections.abc import Callable
+from abc import ABC, abstractmethod
 
 import supernotelib
 
@@ -30,7 +31,19 @@ STORAGE_KEY = "supernote_cloud"
 STORAGE_VERSION = 1
 
 
-class MetadataStore:
+class AbstractMetadataStore(ABC):
+    """Abstract class for local storage of metadata for Supernote Cloud data."""
+
+    @abstractmethod
+    async def get_folder_contents(self, folder_id: int) -> FolderContents | None:
+        """Get the metadata for a local folder."""
+
+    @abstractmethod
+    async def set_folder_contents(self, folder: FolderContents) -> None:
+        """Set the metadata for a local folder."""
+
+
+class MetadataStore(AbstractMetadataStore):
     """Local storage of metadata for Supernote Cloud data.
 
     This is essentially a cache of the API responses to avoid putting load
@@ -65,11 +78,11 @@ class LocalStore:
 
     def __init__(
         self,
-        metadata_store: MetadataStore,
+        metadata_store: AbstractMetadataStore,
         storage_path: pathlib.Path,
         client: SupernoteCloudClient,
         reauth_cb: Callable[[], None],
-    ):
+    ) -> None:
         """Initialize the store."""
         self._metadata_store = metadata_store
         self._storage_path = storage_path

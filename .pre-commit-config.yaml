@@ -9,6 +9,8 @@ repos:
         args:
           - --allow-multiple-documents
       - id: check-added-large-files
+        exclude: ^tests/store/testdata/.*$
+
   - repo: https://github.com/psf/black
     rev: 24.10.0
     hooks:
