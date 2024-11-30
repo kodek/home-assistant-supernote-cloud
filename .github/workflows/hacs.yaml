@@ -20,7 +20,5 @@ jobs:
         with:
           category: "integration"
           ignore: brands
-<<<<<<< ours
-=======
-  
->>>>>>> theirs
+
+
