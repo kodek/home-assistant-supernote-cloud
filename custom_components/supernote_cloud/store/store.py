@@ -3,22 +3,17 @@
 from __future__ import annotations
 
 import asyncio
-import io
-import pathlib
-import logging
 import hashlib
-from typing import Any
+import io
+import logging
+import pathlib
 from collections.abc import Callable
-from abc import ABC, abstractmethod
 
 import supernotelib
 
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.storage import Store
-
 from ..supernote_client.auth import SupernoteCloudClient
 from ..supernote_client.exceptions import UnauthorizedException
-from .model import FolderContents, FileInfo, FolderInfo, IS_FOLDER
+from .model import IS_FOLDER, FileInfo, FolderContents, FolderInfo
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,50 +22,6 @@ NOTE_SUFFIX = ".note"
 METADATA_SUFFIX = ".meta.json"
 PNG_SUFFIX = ".png"
 POLICY = "loose"
-STORAGE_KEY = "supernote_cloud"
-STORAGE_VERSION = 1
-
-
-class AbstractMetadataStore(ABC):
-    """Abstract class for local storage of metadata for Supernote Cloud data."""
-
-    @abstractmethod
-    async def get_folder_contents(self, folder_id: int) -> FolderContents | None:
-        """Get the metadata for a local folder."""
-
-    @abstractmethod
-    async def set_folder_contents(self, folder: FolderContents) -> None:
-        """Set the metadata for a local folder."""
-
-
-class MetadataStore(AbstractMetadataStore):
-    """Local storage of metadata for Supernote Cloud data.
-
-    This is essentially a cache of the API responses to avoid putting load
-    on cloud when reading backups.
-    """
-
-    def __init__(self, hass: HomeAssistant, storage_path: pathlib.Path) -> None:
-        """Initialize the store."""
-        self._store: Store[dict[str, Any]] = Store(
-            hass,
-            version=STORAGE_VERSION,
-            key=str(storage_path / "folder_contents.json"),
-            private=True,
-        )
-
-    async def get_folder_contents(self, folder_id: int) -> FolderContents | None:
-        """Get the metadata for a local folder."""
-        data = await self._store.async_load() or {}
-        if (metadata := data.get(str(folder_id))) is None:
-            return None
-        return FolderContents.from_dict(metadata)
-
-    async def set_folder_contents(self, folder: FolderContents) -> None:
-        """Set the metadata for a local folder."""
-        data = await self._store.async_load() or {}
-        data[str(folder.folder_id)] = folder.to_dict()
-        await self._store.async_save(data)
 
 
 class LocalStore:
@@ -78,31 +29,27 @@ class LocalStore:
 
     def __init__(
         self,
-        metadata_store: AbstractMetadataStore,
         storage_path: pathlib.Path,
         client: SupernoteCloudClient,
         reauth_cb: Callable[[], None],
     ) -> None:
         """Initialize the store."""
-        self._metadata_store = metadata_store
         self._storage_path = storage_path
         self._client = client
         self._reauth_cb = reauth_cb
 
     async def get_folder_contents(self, folder_id: int) -> FolderContents:
-        """Fetch the folder information."""
+        """Fetch the folder information using the client's cache."""
 
-        folder_contents = await self._metadata_store.get_folder_contents(folder_id)
-        if folder_contents and not folder_contents.is_expired:
-            _LOGGER.debug("Serving %s from local cache", folder_id)
-            return folder_contents
-
-        # Fetch the folder from the cloud
+        _LOGGER.debug("Fetching folder contents for folder_id: %s", folder_id)
+        # Fetch the folder from the cloud (or client's in-memory cache)
         try:
             file_list_response = await self._client.file_list(folder_id)
         except UnauthorizedException as err:
             self._reauth_cb()
             raise err
+
+        # Convert API response to local model
         folder_contents = FolderContents(folder_id=folder_id)
         for file in file_list_response.file_list:
             if file.is_folder == IS_FOLDER:
@@ -125,9 +72,6 @@ class LocalStore:
                     update_time=file.update_time,
                 )
                 folder_contents.file_children.append(new_file)
-
-        _LOGGER.debug("Updating cache for %s", folder_contents)
-        await self._metadata_store.set_folder_contents(folder_contents)
 
         return folder_contents
 

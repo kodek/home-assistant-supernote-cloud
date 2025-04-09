@@ -1,25 +1,29 @@
 """Library for accessing backups in Supenote Cloud."""
 
+import asyncio
+import functools
 import hashlib
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Type, TypeVar
+from typing import Any, Callable, Coroutine, Type, TypeVar
 
 import aiohttp
 from aiohttp.client_exceptions import ClientError
+from cachetools import TTLCache
+from cachetools.keys import hashkey
 from mashumaro.mixins.json import DataClassJSONMixin
 
 from .api_model import (
+    FileListRequest,
+    FileListResponse,
+    GetFileDownloadUrlRequest,
+    GetFileDownloadUrlResponse,
+    QueryUserRequest,
+    QueryUserResponse,
     UserLoginRequest,
     UserLoginResponse,
     UserRandomCodeRequest,
     UserRandomCodeResponse,
-    FileListResponse,
-    GetFileDownloadUrlRequest,
-    GetFileDownloadUrlResponse,
-    FileListRequest,
-    QueryUserResponse,
-    QueryUserRequest,
 )
 from .exceptions import ApiException, UnauthorizedException
 
@@ -33,6 +37,52 @@ HEADERS = {
 ACCESS_TOKEN = "x-access-token"
 
 _T = TypeVar("_T", bound=DataClassJSONMixin)
+_R = TypeVar("_R")
+
+
+# Async TTL cache decorator that accesses cache/lock via instance attributes
+def async_ttl_cache(
+    cache_name: str, lock_name: str
+) -> Callable[[Callable[..., Coroutine[Any, Any, _R]]], Callable[..., Coroutine[Any, Any, _R]]]:
+    """Decorator factory to cache async method results with TTL using instance attributes."""
+
+    def decorator(
+        func: Callable[..., Coroutine[Any, Any, _R]]
+    ) -> Callable[..., Coroutine[Any, Any, _R]]:
+        @functools.wraps(func)
+        async def wrapper(self: Any, *args: Any, **kwargs: Any) -> _R:
+            """Async wrapper that uses instance cache and lock."""
+            cache: TTLCache[Any, Any] = getattr(self, cache_name)
+            lock: asyncio.Lock = getattr(self, lock_name)
+            # Exclude self from the cache key
+            key = hashkey(*args, **kwargs)
+
+            async with lock:
+                if key in cache:
+                    _LOGGER.debug(
+                        "Cache hit for %s.%s with key %s",
+                        type(self).__name__,
+                        func.__name__,
+                        key,
+                    )
+                    return cache[key]  # type: ignore[no-any-return]
+
+            _LOGGER.debug(
+                "Cache miss for %s.%s with key %s",
+                type(self).__name__,
+                func.__name__,
+                key,
+            )
+            # Call the original method
+            result = await func(self, *args, **kwargs)
+
+            async with lock:
+                cache[key] = result
+            return result
+
+        return wrapper
+
+    return decorator
 
 
 def _sha256_s(s: str) -> str:
@@ -230,16 +280,27 @@ class SupernoteCloudClient:
     def __init__(self, client: Client):
         """Initialize the client."""
         self._client = client
+        # Cache for query_user (1 hour TTL, max 10 entries)
+        self._query_user_cache: TTLCache[Any, QueryUserResponse] = TTLCache(maxsize=10, ttl=3600)
+        self._query_user_lock = asyncio.Lock()
+        # Cache for file_list (5 minutes TTL, max 50 entries)
+        self._file_list_cache: TTLCache[Any, FileListResponse] = TTLCache(maxsize=50, ttl=300)
+        self._file_list_lock = asyncio.Lock()
+        # Cache for file download URLs (1 minute TTL, max 100 entries)
+        self._download_url_cache: TTLCache[Any, GetFileDownloadUrlResponse] = TTLCache(maxsize=100, ttl=60)
+        self._download_url_lock = asyncio.Lock()
 
+    @async_ttl_cache("_query_user_cache", "_query_user_lock")
     async def query_user(self, account: str) -> QueryUserResponse:
-        """Query the user."""
+        """Query the user (cached)."""
         payload = QueryUserRequest(country_code=1, account=account).to_dict()
         return await self._client.post_json(
             "user/query", QueryUserResponse, json=payload
         )
 
+    @async_ttl_cache("_file_list_cache", "_file_list_lock")
     async def file_list(self, directory_id: int = 0) -> FileListResponse:
-        """Return a list of files."""
+        """Return a list of files (cached)."""
         payload = FileListRequest(
             directory_id=directory_id,
             page_no=1,
@@ -251,11 +312,18 @@ class SupernoteCloudClient:
             "file/list/query", FileListResponse, json=payload
         )
 
-    async def file_download(self, file_id: int) -> bytes:
-        """Download a file."""
+    @async_ttl_cache("_download_url_cache", "_download_url_lock")
+    async def _get_file_download_url(self, file_id: int) -> GetFileDownloadUrlResponse:
+        """Get the download URL for a file (cached)."""
+        _LOGGER.debug("Fetching download URL for file_id: %s", file_id)
         payload = GetFileDownloadUrlRequest(file_id=file_id, file_type=0).to_dict()
-        download_url_response = await self._client.post_json(
+        return await self._client.post_json(
             "file/download/url", GetFileDownloadUrlResponse, json=payload
         )
+
+    async def file_download(self, file_id: int) -> bytes:
+        """Download a file by first getting a (cached) URL."""
+        download_url_response = await self._get_file_download_url(file_id)
+        _LOGGER.debug("Downloading file from URL: %s", download_url_response.url)
         response = await self._client.get(download_url_response.url)
         return await response.read()

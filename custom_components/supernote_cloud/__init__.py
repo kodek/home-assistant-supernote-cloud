@@ -11,15 +11,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import aiohttp_client
 from homeassistant.helpers.typing import ConfigType
 
-from .const import DOMAIN
 from .auth import ConfigEntryAuth
-from .types import SupernoteCloudConfigEntry
-from .supernote_client.auth import (
-    SupernoteCloudClient,
-    Client,
-)
-from .store.store import LocalStore, MetadataStore
+from .const import DOMAIN
 from .media_source import async_register_http_views
+from .store.store import LocalStore
+from .supernote_client.auth import Client, SupernoteCloudClient
+from .types import SupernoteCloudConfigEntry
 
 __all__ = ["DOMAIN"]
 
@@ -50,9 +47,7 @@ async def async_setup_entry(
         _LOGGER.debug("Reauthenticating")
         entry.async_start_reauth(hass)
 
-    store = LocalStore(
-        MetadataStore(hass, store_path), store_path, supernote_client, reauth_cb
-    )
+    store = LocalStore(store_path, supernote_client, reauth_cb)
 
     # run in executor thread
     def mkdir() -> None:

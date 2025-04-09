@@ -2,44 +2,19 @@
 
 import pathlib
 import tempfile
-from unittest.mock import AsyncMock, MagicMock, Mock
 from collections.abc import Generator
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
 
+from custom_components.supernote_cloud.store.model import FileInfo
+from custom_components.supernote_cloud.store.store import LocalStore
 from custom_components.supernote_cloud.supernote_client.api_model import (
-    FileListResponse,
     File,
+    FileListResponse,
 )
-from custom_components.supernote_cloud.store.store import (
-    LocalStore,
-    AbstractMetadataStore,
-)
-from custom_components.supernote_cloud.store.model import FolderContents, FileInfo
 
 NOTE_FILE = pathlib.Path("tests/store/testdata/Guitar.note")
-
-
-class FakeStore(AbstractMetadataStore):
-    """Fake store for testing."""
-
-    def __init__(self) -> None:
-        """Initialize the store."""
-        self._metadata = {}
-
-    async def get_folder_contents(self, folder_id: int) -> FolderContents | None:
-        """Get the metadata for a local folder."""
-        return self._metadata.get(folder_id)
-
-    async def set_folder_contents(self, folder: FolderContents) -> None:
-        """Set the metadata for a local folder."""
-        self._metadata[folder.folder_id] = folder
-
-
-@pytest.fixture(name="metadata_store")
-def metadata_store_fixture() -> FakeStore:
-    """Create a fake metadata store."""
-    return FakeStore()
 
 
 @pytest.fixture(name="client")
@@ -56,11 +31,9 @@ def store_path_fixture() -> Generator[pathlib.Path]:
 
 
 @pytest.fixture(name="local_store")
-def local_store_fixture(
-    metadata_store: FakeStore, client: Mock, store_path: pathlib.Path
-) -> LocalStore:
+def local_store_fixture(client: Mock, store_path: pathlib.Path) -> LocalStore:
     """Create a local store."""
-    return LocalStore(metadata_store, store_path, client, MagicMock())
+    return LocalStore(store_path, client, MagicMock())
 
 
 @pytest.fixture(name="note_contents")
@@ -70,22 +43,7 @@ def note_contents_fixture() -> bytes:
         return file.read()
 
 
-async def test_cached_folder_contents(
-    metadata_store: FakeStore, local_store: LocalStore
-) -> None:
-    """Test getting folder contents."""
-
-    folder = FolderContents(folder_id=1234)
-    assert not folder.is_expired
-    await metadata_store.set_folder_contents(folder)
-
-    contents = await local_store.get_folder_contents(1234)
-    assert contents == folder
-
-
-async def test_folder_contents(
-    metadata_store: FakeStore, local_store: LocalStore, client: Mock
-) -> None:
+async def test_folder_contents(local_store: LocalStore, client: Mock) -> None:
     """Test getting folder contents."""
 
     client.file_list = AsyncMock()
