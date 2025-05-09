@@ -39,3 +39,11 @@ Library for efficient backup based on:
 - [x] concurrency fixes
 - [x] fully async io
 - [x] invalidate .png files when the notebook contents change
+
+### Environment Pre-requisites
+
+```bash
+$ uv venv
+$ source .venv/bin/activate
+$ uv pip install -r requirements_dev.txt
+```
