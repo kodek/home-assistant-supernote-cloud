@@ -59,7 +59,7 @@ class ConfigEntryAuth(AbstractAuth):
             )
         except SupernoteException as err:
             _LOGGER.debug("Login api exception: %s", err)
-            raise HomeAssistantError("API Error: {err}") from err
+            raise HomeAssistantError(f"API Error: {err}") from err
 
         self._hass.config_entries.async_update_entry(
             self._entry,
