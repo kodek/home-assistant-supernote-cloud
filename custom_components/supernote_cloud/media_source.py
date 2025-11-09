@@ -11,8 +11,8 @@ from aiohttp.web import Response, Request, StreamResponse
 
 from homeassistant.components.http.view import HomeAssistantView
 from homeassistant.components.media_player import MediaClass, MediaType
+from homeassistant.components.media_player.errors import BrowseError
 from homeassistant.components.media_source import (
-    BrowseError,
     BrowseMediaSource,
     MediaSource,
     MediaSourceItem,

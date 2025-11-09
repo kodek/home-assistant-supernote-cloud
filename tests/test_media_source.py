@@ -4,9 +4,9 @@ import pytest
 from unittest.mock import patch
 from http import HTTPStatus
 
+from homeassistant.components.media_player.errors import BrowseError
 from homeassistant.components.media_source import (
     URI_SCHEME,
-    BrowseError,
     async_browse_media,
     async_resolve_media,
 )
