@@ -11,7 +11,7 @@ from typing import Any
 from collections.abc import Callable
 from abc import ABC, abstractmethod
 
-import supernotelib
+import supernote
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
@@ -223,7 +223,7 @@ class NotebookFile:
         """Initialize the notebook."""
         self._note_contents = note_contents
         self._local_file_path = local_file_path
-        self._notebook = supernotelib.load(io.BytesIO(note_contents), policy=POLICY)
+        self._notebook = supernote.parser.load(io.BytesIO(note_contents), policy=POLICY)
         note_name_base = pathlib.Path(note_name).stem
         pages = []
         for page_num in range(self._notebook.get_total_pages()):
@@ -256,7 +256,7 @@ class NotebookFile:
         local_png_path = self.local_png_path(page_num)
 
         def _write_png() -> None:
-            converter = supernotelib.converter.ImageConverter(self._notebook)
+            converter = supernote.converter.ImageConverter(self._notebook)
             content = converter.convert(page_num)
             content.save(str(local_png_path), format="PNG")
 
