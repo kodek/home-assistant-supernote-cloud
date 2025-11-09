@@ -31,8 +31,9 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36",
 }
 ACCESS_TOKEN = "x-access-token"
-XSRF_TOKEN = "x-xsrf-token"
-XSRF_TOKEN_HEADER = "XSRF-TOKEN"
+XSRF_COOKIE = "XSRF-TOKEN"
+XSRF_HEADER = "X-XSRF-TOKEN"
+
 
 _T = TypeVar("_T", bound=DataClassJSONMixin)
 
@@ -98,9 +99,9 @@ class Client:
             }
         if self._xsrf_token is None:
             self._xsrf_token = await self._get_csrf_token()
-        headers[XSRF_TOKEN] = self._xsrf_token
+        headers[XSRF_HEADER] = self._xsrf_token
         cookies = {
-            XSRF_TOKEN_HEADER: self._xsrf_token,
+            XSRF_COOKIE: self._xsrf_token,
         }
         if self._auth and ACCESS_TOKEN not in headers:
             access_token = await self._auth.async_get_access_token()
@@ -110,7 +111,9 @@ class Client:
         _LOGGER.debug("request[%s]=%s %s", method, url, kwargs.get("params"))
         if method != "get" and "json" in kwargs:
             _LOGGER.debug("request[post json]=%s", kwargs["json"])
-        return await self._websession.request(method, url, **kwargs, headers=headers, cookies=cookies)
+        return await self._websession.request(
+            method, url, **kwargs, headers=headers, cookies=cookies
+        )
 
     async def get(self, url: str, **kwargs: Any) -> aiohttp.ClientResponse:
         """Make a get request."""
@@ -163,7 +166,7 @@ class Client:
         """Get the CSRF token."""
         # The token is returned in the XSRF-TOKEN header.
         resp = await self._websession.request("get", f"{self._host}/csrf")
-        token = resp.headers.get(XSRF_TOKEN_HEADER)
+        token = resp.headers.get(XSRF_HEADER)
         if token is None:
             raise ApiException("Failed to get CSRF token from header")
         return token
