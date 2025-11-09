@@ -94,3 +94,7 @@ def mock_csrf(aioclient_mock: AiohttpClientMocker) -> None:
         "https://cloud.supernote.com/api/csrf",
         headers={"X-XSRF-TOKEN": "csrf-token-1"},
     )
+    aioclient_mock.post(
+        "https://cloud.supernote.com/api/user/query/token",
+        json={},
+    )

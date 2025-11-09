@@ -20,6 +20,8 @@ from .api_model import (
     FileListRequest,
     QueryUserResponse,
     QueryUserRequest,
+    TokenRequest,
+    TokenResponse,
 )
 from .exceptions import ApiException, UnauthorizedException, ForbiddenException
 
@@ -100,15 +102,20 @@ class Client:
         if self._xsrf_token is None:
             self._xsrf_token = await self._get_csrf_token()
         headers[XSRF_HEADER] = self._xsrf_token
-        cookies = {
-            XSRF_COOKIE: self._xsrf_token,
-        }
+        cookies = {XSRF_COOKIE: self._xsrf_token}
         if self._auth and ACCESS_TOKEN not in headers:
             access_token = await self._auth.async_get_access_token()
             headers[ACCESS_TOKEN] = access_token
         if not (url.startswith("http://") or url.startswith("https://")):
             url = f"{self._host}/{url}"
-        _LOGGER.debug("request[%s]=%s %s %s %s", method, url, kwargs.get("params"), headers, cookies)
+        _LOGGER.debug(
+            "request[%s]=%s %s %s %s",
+            method,
+            url,
+            kwargs.get("params"),
+            headers,
+            cookies,
+        )
         if method != "get" and "json" in kwargs:
             _LOGGER.debug("request[post json]=%s", kwargs["json"])
         return await self._websession.request(
@@ -219,12 +226,21 @@ class LoginClient:
 
     async def login(self, email: str, password: str) -> str:
         """Log in and return an access token."""
+        await self._token()
         random_code_response = await self._get_random_code(email)
         encoded_password = _encode_password(password, random_code_response.random_code)
         access_token_response = await self._get_access_token(
             email, encoded_password, random_code_response.timestamp
         )
         return access_token_response.token
+
+    async def _token(self) -> None:
+        """Get a random code."""
+        await self._client.post_json(
+            "user/query/token",
+            TokenResponse,
+            json=TokenRequest().to_dict(),
+        )
 
     async def _get_random_code(self, email: str) -> UserRandomCodeResponse:
         """Get a random code."""

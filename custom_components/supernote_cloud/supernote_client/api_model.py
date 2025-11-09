@@ -35,6 +35,19 @@ class QueryUserResponse(DataClassJSONMixin):
 
 
 @dataclass
+class TokenRequest(DataClassJSONMixin):
+    """Request to token endpoint."""
+
+    class Config(BaseConfig):
+        serialize_by_alias = True
+
+
+@dataclass
+class TokenResponse(DataClassJSONMixin):
+    """Response from token endpoint."""
+
+
+@dataclass
 class UserRandomCodeRequest(DataClassJSONMixin):
     """Request to get a random code."""
 
