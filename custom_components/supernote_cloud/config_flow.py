@@ -8,7 +8,7 @@ import logging
 
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigFlowResult
+from homeassistant.config_entries import ConfigFlowResult, SOURCE_REAUTH
 from homeassistant.helpers import selector
 from homeassistant.helpers.schema_config_entry_flow import (
     SchemaCommonFlowHandler,
@@ -66,7 +66,6 @@ async def validate_user_input(
         _LOGGER.debug("Query api exception: %s", err)
         raise SchemaFlowError("api_error") from err
     await handler.parent_handler.async_set_unique_id(unique_id=str(user_response.user_id))  # type: ignore[union-attr]
-    handler.parent_handler._abort_if_unique_id_configured()  # type: ignore[union-attr]
     return {
         **user_input,
         CONF_ACCESS_TOKEN: access_token,
@@ -130,14 +129,15 @@ class SupernoteCloudConfigFlowHandler(SchemaConfigFlowHandler, domain=DOMAIN):
             )
         return await self.async_step_user()
 
-    # async def async_oauth_create_entry(self, data: dict) -> ConfigFlowResult:
-    #     """Create an oauth config entry or update existing entry for reauth."""
-    #     data[CONF_TOKEN_TIMESTAMP] = dt_util.now().timestamp()
-    #     if self.source == SOURCE_REAUTH:
-    #         self._abort_if_unique_id_mismatch()
-    #         return self.async_update_reload_and_abort(
-    #             self._get_reauth_entry(),
-    #             data_updates=data,
-    #         )
-    #     self._abort_if_unique_id_configured()
-    #     return await super().async_oauth_create_entry(data)  # type: ignore[no-any-return]
+    def async_create_entry(self, data: dict, **kwargs: Any) -> ConfigFlowResult:
+        """Create an oauth config entry or update existing entry for reauth."""
+        data[CONF_TOKEN_TIMESTAMP] = dt_util.now().timestamp()
+        if self.source == SOURCE_REAUTH:
+            self._abort_if_unique_id_mismatch()
+            return self.async_update_reload_and_abort(
+                self._get_reauth_entry(),
+                title=data[CONF_API_USERNAME],
+                options=data,
+            )
+        self._abort_if_unique_id_configured()
+        return super().async_create_entry(data, **kwargs)  # type: ignore[no-any-return]

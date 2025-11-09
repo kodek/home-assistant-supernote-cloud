@@ -25,6 +25,8 @@ from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
 )
 
+from .conftest import CONFIG_ENTRY_ID
+
 
 @freeze_time("2021-01-01 12:00:00")
 async def test_full_flow(
@@ -170,6 +172,92 @@ async def test_reauth_flow(
     aioclient_mock: AiohttpClientMocker,
 ) -> None:
     """Test reauth flow."""
+    entries = hass.config_entries.async_entries(DOMAIN)
+    assert len(entries) == 1
+    old_timestamp = config_entry.options[CONF_TOKEN_TIMESTAMP]
+
+    config_entry.async_start_reauth(hass)
+    await hass.async_block_till_done()
+
+    aioclient_mock.post(
+        "https://cloud.supernote.com/api/official/user/query/random/code",
+        json={
+            "randomCode": "abcdef",
+            "timestamp": "17276692307051",
+        },
+    )
+    aioclient_mock.post(
+        "https://cloud.supernote.com/api/official/user/account/login/new",
+        json={
+            "success": True,
+            "token": "access-token-1",
+        },
+    )
+    aioclient_mock.post(
+        "https://cloud.supernote.com/api/user/query",
+        json={
+            "success": True,
+            "birthday": "2000-01-20T15:00:00.000Z",
+            "countryCode": "1",
+            "userName": "some-user-name",
+            "userId": CONFIG_ENTRY_ID,
+        },
+    )
+
+    # Advance through the reauth flow
+    flows = hass.config_entries.flow.async_progress()
+    assert len(flows) == 1
+    result = flows[0]
+    assert result["step_id"] == "reauth_confirm"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {}
+    )
+    assert result.get("type") is FlowResultType.FORM
+    assert result.get("step_id") == "user"
+
+
+    with patch(
+        f"custom_components.{DOMAIN}.async_setup_entry", return_value=True
+    ) as mock_setup:
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_USERNAME: "username",
+                CONF_PASSWORD: "password",
+            },
+        )
+        await hass.async_block_till_done()
+    assert result.get("type") is FlowResultType.ABORT
+    assert result.get("reason") == "reauth_successful"
+
+    assert config_entry.title == "some-user-name"
+    assert config_entry.data == {}
+    assert config_entry.options[CONF_TOKEN_TIMESTAMP] != old_timestamp
+    assert config_entry.options == {
+        CONF_USERNAME: "username",
+        CONF_PASSWORD: "password",
+        CONF_ACCESS_TOKEN: "access-token-1",
+        CONF_UNIQUE_ID: CONFIG_ENTRY_ID,
+        CONF_API_USERNAME: "some-user-name",
+        CONF_TOKEN_TIMESTAMP: 1609502400.0,
+    }
+
+    assert len(mock_setup.mock_calls) == 1
+
+    entries = hass.config_entries.async_entries(DOMAIN)
+    assert len(entries) == 1
+
+
+
+@freeze_time("2021-01-01 12:00:00")
+async def test_reauth_config_entry_mismatch(
+    hass: HomeAssistant,
+    config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test reauth flow."""
     config_entry.async_start_reauth(hass)
     await hass.async_block_till_done()
 
@@ -223,19 +311,64 @@ async def test_reauth_flow(
             },
         )
         await hass.async_block_till_done()
-    assert result.get("type") is FlowResultType.CREATE_ENTRY
-    assert result.get("title") == "some-user-name"
-    assert result.get("data") == {}
-    assert result.get("options") == {
-        CONF_USERNAME: "username",
-        CONF_PASSWORD: "password",
-        CONF_ACCESS_TOKEN: "access-token-1",
-        CONF_UNIQUE_ID: "654321",
-        CONF_API_USERNAME: "some-user-name",
-        CONF_TOKEN_TIMESTAMP: 1609502400.0,
-    }
-    config_entry = result.get("result")
-    assert config_entry
-    assert config_entry.unique_id == "654321"
+    assert result.get("type") is FlowResultType.ABORT
+    assert result.get("reason") == "unique_id_mismatch"
 
-    assert len(mock_setup.mock_calls) == 1
+    assert len(mock_setup.mock_calls) == 0
+
+
+
+@freeze_time("2021-01-01 12:00:00")
+async def test_duplicate_config_entry(
+    hass: HomeAssistant,
+    config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test selecting a device in the configuration flow."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    assert result.get("type") is FlowResultType.FORM
+    assert result.get("errors") is None
+
+    aioclient_mock.post(
+        "https://cloud.supernote.com/api/official/user/query/random/code",
+        json={
+            "randomCode": "abcdef",
+            "timestamp": "17276692307051",
+        },
+    )
+    aioclient_mock.post(
+        "https://cloud.supernote.com/api/official/user/account/login/new",
+        json={
+            "success": True,
+            "token": "access-token-1",
+        },
+    )
+    aioclient_mock.post(
+        "https://cloud.supernote.com/api/user/query",
+        json={
+            "success": True,
+            "birthday": "2000-01-20T15:00:00.000Z",
+            "countryCode": "1",
+            "userName": "user-name",
+            "userId": CONFIG_ENTRY_ID
+        },
+    )
+
+    with patch(
+        f"custom_components.{DOMAIN}.async_setup_entry", return_value=True
+    ) as mock_setup:
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_USERNAME: "username",
+                CONF_PASSWORD: "password",
+            },
+        )
+        await hass.async_block_till_done()
+
+    assert result.get("type") is FlowResultType.ABORT
+    assert result.get("reason") == "already_configured"
+
+    assert len(mock_setup.mock_calls) == 0
