@@ -40,10 +40,28 @@ Library for efficient backup based on:
 - [x] fully async io
 - [x] invalidate .png files when the notebook contents change
 
-### Environment Pre-requisites
+
+## Local Development
+
+### Pre-requisites
 
 ```bash
 $ uv venv
 $ source .venv/bin/activate
-$ uv pip install -r requirements_dev.txt
+$ uv pip install -r requirements_dev.txt --prerelease=allow
+```
+
+### Prepare Home Assistant
+
+```bash
+$ export PYTHONPATH="${PYTHONPATH}:${PWD}"
+$ hass -c /workspaces/config --script ensure_config
+```
+
+### Run Home Assistant
+
+From then on run home assistant:
+
+```bash
+$ hass -c /workspaces/config
 ```
