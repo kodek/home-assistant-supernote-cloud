@@ -8,6 +8,7 @@ import logging
 
 import voluptuous as vol
 
+from homeassistant.core import callback
 from homeassistant.config_entries import ConfigFlowResult, SOURCE_REAUTH
 from homeassistant.helpers import selector
 from homeassistant.helpers.schema_config_entry_flow import (
@@ -129,9 +130,11 @@ class SupernoteCloudConfigFlowHandler(SchemaConfigFlowHandler, domain=DOMAIN):
             )
         return await self.async_step_user()
 
-    def async_create_entry(self, data: dict, **kwargs: Any) -> ConfigFlowResult:
-        """Create an oauth config entry or update existing entry for reauth."""
-        data[CONF_TOKEN_TIMESTAMP] = dt_util.now().timestamp()
+    @callback
+    def async_create_entry(
+        self, data: Mapping[str, Any], **kwargs: Any
+    ) -> ConfigFlowResult:
+        """Create a config entry or update existing entry for reauth."""
         if self.source == SOURCE_REAUTH:
             self._abort_if_unique_id_mismatch()
             return self.async_update_reload_and_abort(
