@@ -21,7 +21,7 @@ from .api_model import (
     QueryUserResponse,
     QueryUserRequest,
 )
-from .exceptions import ApiException, UnauthorizedException
+from .exceptions import ApiException, UnauthorizedException, ForbiddenException
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -164,6 +164,11 @@ class Client:
                     f"Unauthorized response from API ({err.status}): {error_detail}"
                 )
                 raise UnauthorizedException(error_message) from err
+            if err.status == 403:
+                error_message = (
+                    f"Forbidden response from API ({err.status}): {error_detail}"
+                )
+                raise ForbiddenException(error_message) from err
             error_message = f"Error response from API ({err.status}): {error_detail}"
             raise ApiException(error_message) from err
         except aiohttp.ClientError as err:

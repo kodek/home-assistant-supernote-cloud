@@ -19,7 +19,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from ..supernote_client.auth import SupernoteCloudClient
-from ..supernote_client.exceptions import UnauthorizedException
+from ..supernote_client.exceptions import ForbiddenException, UnauthorizedException
 from .model import FolderContents, FileInfo, FolderInfo, IS_FOLDER
 
 _LOGGER = logging.getLogger(__name__)
@@ -102,7 +102,7 @@ class LocalStore:
         # Fetch the folder from the cloud
         try:
             file_list_response = await self._client.file_list(folder_id)
-        except UnauthorizedException as err:
+        except (UnauthorizedException, ForbiddenException) as err:
             self._reauth_cb()
             raise err
         folder_contents = FolderContents(folder_id=folder_id)
@@ -193,7 +193,7 @@ class LocalStore:
         _LOGGER.debug("Downloading %s", local_file.name)
         try:
             contents = await self._client.file_download(local_file.file_id)
-        except UnauthorizedException as err:
+        except (UnauthorizedException, ForbiddenException) as err:
             self._reauth_cb()
             raise err
 

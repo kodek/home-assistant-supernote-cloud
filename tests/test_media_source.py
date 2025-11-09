@@ -331,12 +331,18 @@ async def test_item_content_invalid_identifier(
     assert response.status == HTTPStatus.BAD_REQUEST
 
 
+@pytest.mark.parametrize(
+    ("status", "error_message"),
+    [(HTTPStatus.UNAUTHORIZED, "Unauthorized"), (HTTPStatus.FORBIDDEN, "Forbidden")],
+)
 @pytest.mark.usefixtures("setup_integration")
 async def test_authentication_error(
     hass: HomeAssistant,
     aioclient_mock: AiohttpClientMocker,
     hass_client: ClientSessionGenerator,
     config_entry: MockConfigEntry,
+    status: HTTPStatus,
+    error_message: str,
 ) -> None:
     """Test browsing the top level folder list."""
     assert config_entry.state is ConfigEntryState.LOADED
@@ -352,10 +358,10 @@ async def test_authentication_error(
     # Browse folders
     aioclient_mock.post(
         "https://cloud.supernote.com/api/file/list/query",
-        status=HTTPStatus.UNAUTHORIZED,
+        status=status,
     )
 
-    with pytest.raises(BrowseError, match="Unauthorized"):
+    with pytest.raises(BrowseError, match=error_message):
         await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}/{ROOT_FOLDER_PATH}")
         await hass.async_block_till_done()
 

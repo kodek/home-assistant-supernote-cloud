@@ -6,7 +6,12 @@ from unittest.mock import patch
 
 import pytest
 
-from homeassistant.const import Platform, CONF_ACCESS_TOKEN
+from homeassistant.const import (
+    Platform,
+    CONF_ACCESS_TOKEN,
+    CONF_UNIQUE_ID,
+    CONF_PASSWORD,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
 from homeassistant.util import dt as dt_util
@@ -19,6 +24,7 @@ from pytest_homeassistant_custom_component.common import (
 from custom_components.supernote_cloud.const import (
     DOMAIN,
     CONF_TOKEN_TIMESTAMP,
+    CONF_API_USERNAME,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -70,6 +76,9 @@ async def mock_config_entry(
         options={
             CONF_ACCESS_TOKEN: "access-token-1",
             CONF_TOKEN_TIMESTAMP: dt_util.now().timestamp(),
+            CONF_UNIQUE_ID: CONFIG_ENTRY_ID,
+            CONF_API_USERNAME: "user-name",
+            CONF_PASSWORD: "some-password",
         },
     )
     config_entry.add_to_hass(hass)
