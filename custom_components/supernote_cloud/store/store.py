@@ -12,6 +12,8 @@ from collections.abc import Callable
 from abc import ABC, abstractmethod
 
 import supernote
+import supernote.parser
+import supernote.converter
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
