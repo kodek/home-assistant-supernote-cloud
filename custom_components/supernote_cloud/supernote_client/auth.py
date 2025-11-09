@@ -108,7 +108,7 @@ class Client:
             headers[ACCESS_TOKEN] = access_token
         if not (url.startswith("http://") or url.startswith("https://")):
             url = f"{self._host}/{url}"
-        _LOGGER.debug("request[%s]=%s %s", method, url, kwargs.get("params"))
+        _LOGGER.debug("request[%s]=%s %s %s %s", method, url, kwargs.get("params"), headers, cookies)
         if method != "get" and "json" in kwargs:
             _LOGGER.debug("request[post json]=%s", kwargs["json"])
         return await self._websession.request(
@@ -164,11 +164,13 @@ class Client:
 
     async def _get_csrf_token(self) -> str:
         """Get the CSRF token."""
-        # The token is returned in the XSRF-TOKEN header.
+        _LOGGER.debug("Getting CSRF token")
         resp = await self._websession.request("get", f"{self._host}/csrf")
+        _LOGGER.debug("CSRF response headers=%s", resp.headers)
         token = resp.headers.get(XSRF_HEADER)
         if token is None:
             raise ApiException("Failed to get CSRF token from header")
+        _LOGGER.debug("CSRF token=%s", token)
         return token
 
     @classmethod
