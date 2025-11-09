@@ -8,12 +8,11 @@ import logging
 
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigFlowResult
+from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import ConfigFlowResult, SOURCE_REAUTH
 from homeassistant.helpers import selector
+from homeassistant.helpers import config_entry_oauth2_flow
 from homeassistant.helpers.schema_config_entry_flow import (
-    SchemaCommonFlowHandler,
-    SchemaConfigFlowHandler,
-    SchemaFlowFormStep,
     SchemaFlowError,
 )
 from homeassistant.util import dt as dt_util
@@ -39,14 +38,21 @@ from .supernote_client.exceptions import SupernoteException, ApiException
 _LOGGER = logging.getLogger(__name__)
 
 
+class SupernoteConfigFlowError(SchemaFlowError):
+    """Custom error for Supernote Cloud config flow."""
+
+    def __init__(self, error_key: str) -> None:
+        """Initialize SupernoteConfigFlowError."""
+        super().__init__(error_key)
+        self.error_key = error_key
+
+
 async def validate_user_input(
-    handler: SchemaCommonFlowHandler, user_input: dict[str, Any]
+    hass: HomeAssistant,
+    user_input: dict[str, Any],
 ) -> dict[str, Any]:
     """Validate user input."""
-    handler.parent_handler._async_abort_entries_match(  # noqa: SLF001
-        {CONF_USERNAME: user_input[CONF_USERNAME]}
-    )
-    websession = async_get_clientsession(handler.parent_handler.hass)
+    websession = async_get_clientsession(hass)
     login_client = LoginClient(Client(websession))
     try:
         access_token = await login_client.login(
@@ -54,7 +60,7 @@ async def validate_user_input(
         )
     except (ApiException, SupernoteException) as err:
         _LOGGER.debug("Login api exception: %s", err)
-        raise SchemaFlowError("api_error") from err
+        raise SupernoteConfigFlowError("api_error") from err
 
     # Verify the API works
     supernote_client = SupernoteCloudClient(
@@ -64,9 +70,7 @@ async def validate_user_input(
         user_response = await supernote_client.query_user(user_input[CONF_USERNAME])
     except (ApiException, SupernoteException) as err:
         _LOGGER.debug("Query api exception: %s", err)
-        raise SchemaFlowError("api_error") from err
-    await handler.parent_handler.async_set_unique_id(unique_id=str(user_response.user_id))  # type: ignore[union-attr]
-    handler.parent_handler._abort_if_unique_id_configured()  # type: ignore[union-attr]
+        raise SupernoteConfigFlowError("api_error") from err
     return {
         **user_input,
         CONF_ACCESS_TOKEN: access_token,
@@ -77,34 +81,25 @@ async def validate_user_input(
     }
 
 
-CONFIG_FLOW = {
-    "user": SchemaFlowFormStep(
-        schema=vol.Schema(
-            {
-                vol.Required(CONF_USERNAME): selector.TextSelector(
-                    selector.TextSelectorConfig(),
-                ),
-                vol.Required(CONF_PASSWORD): selector.TextSelector(
-                    selector.TextSelectorConfig(
-                        type=selector.TextSelectorType.PASSWORD
-                    ),
-                ),
-            }
+USER_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_USERNAME): selector.TextSelector(
+            selector.TextSelectorConfig(),
         ),
-        validate_user_input=validate_user_input,
-    )
-}
-
-OPTIONS_FLOW = {
-    "init": SchemaFlowFormStep(),
-}
+        vol.Required(CONF_PASSWORD): selector.TextSelector(
+            selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD),
+        ),
+    }
+)
 
 
-class SupernoteCloudConfigFlowHandler(SchemaConfigFlowHandler, domain=DOMAIN):
+class SupernoteCloudConfigFlowHandler(
+    config_entry_oauth2_flow.AbstractOAuth2FlowHandler, domain=DOMAIN
+):
     """Handle a config flow for Switch as X."""
 
-    config_flow = CONFIG_FLOW
-    options_flow = OPTIONS_FLOW
+    DOMAIN = DOMAIN
+    logger = _LOGGER
 
     VERSION = 1
     MINOR_VERSION = 1
@@ -130,14 +125,39 @@ class SupernoteCloudConfigFlowHandler(SchemaConfigFlowHandler, domain=DOMAIN):
             )
         return await self.async_step_user()
 
-    # async def async_oauth_create_entry(self, data: dict) -> ConfigFlowResult:
-    #     """Create an oauth config entry or update existing entry for reauth."""
-    #     data[CONF_TOKEN_TIMESTAMP] = dt_util.now().timestamp()
-    #     if self.source == SOURCE_REAUTH:
-    #         self._abort_if_unique_id_mismatch()
-    #         return self.async_update_reload_and_abort(
-    #             self._get_reauth_entry(),
-    #             data_updates=data,
-    #         )
-    #     self._abort_if_unique_id_configured()
-    #     return await super().async_oauth_create_entry(data)  # type: ignore[no-any-return]
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle the initial step."""
+        errors: dict[str, str] | None = None
+        if user_input is not None:
+            self._async_abort_entries_match(  # noqa: SLF001
+                {CONF_USERNAME: user_input[CONF_USERNAME]}
+            )
+
+            try:
+                data = await validate_user_input(self.hass, user_input)
+            except SupernoteConfigFlowError as err:
+                errors = {"base": err.error_key}
+            else:
+                await self.async_set_unique_id(unique_id=data[CONF_UNIQUE_ID])
+                self._abort_if_unique_id_configured()  # type: ignore[union-attr]
+
+                return self.async_create_entry(
+                    title=data[CONF_API_USERNAME], data={}, options=data
+                )
+        return self.async_show_form(
+            step_id="user", data_schema=USER_SCHEMA, errors=errors
+        )
+
+    async def async_oauth_create_entry(self, data: dict) -> ConfigFlowResult:
+        """Create an oauth config entry or update existing entry for reauth."""
+        data[CONF_TOKEN_TIMESTAMP] = dt_util.now().timestamp()
+        if self.source == SOURCE_REAUTH:
+            self._abort_if_unique_id_mismatch()
+            return self.async_update_reload_and_abort(
+                self._get_reauth_entry(),
+                data_updates=data,
+            )
+        self._abort_if_unique_id_configured()
+        return await super().async_oauth_create_entry(data)  # type: ignore[no-any-return]

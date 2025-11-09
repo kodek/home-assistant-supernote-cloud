@@ -9,7 +9,14 @@
           "username": "Username or Phone number",
           "password": "Password"
         }
+      },
+      "reauth_confirm": {
+        "title": "[%key:common::config_flow::title::reauth%]",
+        "description": "The Supernote Cloud integration needs to re-authenticate your account"
       }
+    },
+    "abort": {
+      "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]"
     },
     "error": {
       "auth_error": "Authentication error, check username, phone number or password.",
