@@ -6,11 +6,11 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 from collections.abc import Generator
 
 import pytest
-
-from custom_components.supernote_cloud.supernote_client.api_model import (
+from supernote.cloud.api_model import (
     FileListResponse,
     File,
 )
+
 from custom_components.supernote_cloud.store.store import (
     LocalStore,
     AbstractMetadataStore,

@@ -7,6 +7,11 @@ from typing import Any, cast
 import logging
 
 import voluptuous as vol
+from supernote.cloud.exceptions import SupernoteException, ApiException
+from supernote.cloud.auth import ConstantAuth
+from supernote.cloud.login_client import LoginClient
+from supernote.cloud.client import Client
+from supernote.cloud.cloud_client import SupernoteCloudClient
 
 from homeassistant.core import callback
 from homeassistant.config_entries import ConfigFlowResult, SOURCE_REAUTH
@@ -29,13 +34,6 @@ from homeassistant.const import (
 )
 
 from .const import DOMAIN, CONF_API_USERNAME, CONF_TOKEN_TIMESTAMP
-from .supernote_client.auth import (
-    LoginClient,
-    Client,
-    SupernoteCloudClient,
-    ConstantAuth,
-)
-from .supernote_client.exceptions import SupernoteException, ApiException
 
 _LOGGER = logging.getLogger(__name__)
 

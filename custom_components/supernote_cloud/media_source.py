@@ -7,6 +7,7 @@ from enum import StrEnum
 import logging
 from typing import Self, cast
 
+from supernote.cloud.exceptions import ApiException
 from aiohttp.web import Response, Request, StreamResponse
 
 from homeassistant.components.http.view import HomeAssistantView
@@ -23,7 +24,6 @@ from homeassistant.core import HomeAssistant, callback
 from . import SupernoteCloudConfigEntry
 from .const import DOMAIN
 from .store.model import FileInfo, FolderInfo
-from .supernote_client.exceptions import ApiException
 
 _LOGGER = logging.getLogger(__name__)
 

@@ -87,9 +87,10 @@ async def mock_config_entry(
     return config_entry
 
 
-@pytest.fixture(autouse=True)
-def mock_csrf(aioclient_mock: AiohttpClientMocker) -> None:
-    # Browse folders
+def set_up_csrf_mock(
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Set up CSRF mock responses."""
     aioclient_mock.get(
         "https://cloud.supernote.com/api/csrf",
         headers={"X-XSRF-TOKEN": "csrf-token-1"},
@@ -98,3 +99,9 @@ def mock_csrf(aioclient_mock: AiohttpClientMocker) -> None:
         "https://cloud.supernote.com/api/user/query/token",
         json={},
     )
+
+
+@pytest.fixture(autouse=True)
+def mock_csrf(aioclient_mock: AiohttpClientMocker) -> None:
+    """Fixture to mock CSRF requests."""
+    set_up_csrf_mock(aioclient_mock)

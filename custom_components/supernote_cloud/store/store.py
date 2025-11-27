@@ -14,12 +14,12 @@ from abc import ABC, abstractmethod
 import supernote
 import supernote.parser
 import supernote.converter
+from supernote.cloud.cloud_client import SupernoteCloudClient
+from supernote.cloud.exceptions import ForbiddenException, UnauthorizedException
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
-from ..supernote_client.auth import SupernoteCloudClient
-from ..supernote_client.exceptions import ForbiddenException, UnauthorizedException
 from .model import FolderContents, FileInfo, FolderInfo, IS_FOLDER
 
 _LOGGER = logging.getLogger(__name__)
@@ -225,11 +225,11 @@ class NotebookFile:
         """Initialize the notebook."""
         self._note_contents = note_contents
         self._local_file_path = local_file_path
-        self._notebook = supernote.parser.load(io.BytesIO(note_contents), policy=POLICY)
+        self._notebook = supernote.parser.load(io.BytesIO(note_contents), policy=POLICY)  # type: ignore[arg-type]
         note_name_base = pathlib.Path(note_name).stem
         pages = []
         for page_num in range(self._notebook.get_total_pages()):
-            page_id = self._notebook.get_page(page_num).get_pageid()
+            page_id = self._notebook.get_page(page_num).get_pageid()  # type: ignore[no-untyped-call]
             page_name = f"{note_name_base}-{page_num:03d}-{page_id}"
             pages.append(page_name)
         self._pages = pages
@@ -258,8 +258,8 @@ class NotebookFile:
         local_png_path = self.local_png_path(page_num)
 
         def _write_png() -> None:
-            converter = supernote.converter.ImageConverter(self._notebook)
-            content = converter.convert(page_num)
+            converter = supernote.converter.ImageConverter(self._notebook)  # type: ignore[no-untyped-call]
+            content = converter.convert(page_num)  # type: ignore[no-untyped-call]
             content.save(str(local_png_path), format="PNG")
 
         loop = asyncio.get_running_loop()

@@ -20,7 +20,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.typing import ClientSessionGenerator
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
-from .conftest import CONFIG_ENTRY_ID, CONFIG_ENTRY_TITLE
+from .conftest import CONFIG_ENTRY_ID, CONFIG_ENTRY_TITLE, set_up_csrf_mock
 
 SOURCE_TITLE = "Supernote Cloud"
 ROOT_FOLDER_PATH = f"{CONFIG_ENTRY_ID}/f/0"
@@ -128,6 +128,7 @@ async def test_browse_folders(
 
     # Browse contents of a subfolder
     aioclient_mock.clear_requests()
+    set_up_csrf_mock(aioclient_mock)
     aioclient_mock.post(
         "https://cloud.supernote.com/api/file/list/query",
         json={
@@ -159,6 +160,7 @@ async def test_browse_folders(
     ]
 
     aioclient_mock.clear_requests()
+    set_up_csrf_mock(aioclient_mock)
     aioclient_mock.post(
         "https://cloud.supernote.com/api/file/download/url",
         json={"success": True, "url": "https://example.com/file-download-url"},
@@ -250,6 +252,7 @@ async def test_browse_folder_as_file(
 
     # Browse contents of a subfolder
     aioclient_mock.clear_requests()
+    set_up_csrf_mock(aioclient_mock)
     aioclient_mock.post(
         "https://cloud.supernote.com/api/file/list/query",
         json={

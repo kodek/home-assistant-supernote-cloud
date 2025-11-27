@@ -5,6 +5,9 @@ from __future__ import annotations
 import logging
 import pathlib
 
+from supernote.cloud.client import Client
+from supernote.cloud.cloud_client import SupernoteCloudClient
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
@@ -14,10 +17,6 @@ from homeassistant.helpers.typing import ConfigType
 from .const import DOMAIN
 from .auth import ConfigEntryAuth
 from .types import SupernoteCloudConfigEntry
-from .supernote_client.auth import (
-    SupernoteCloudClient,
-    Client,
-)
 from .store.store import LocalStore, MetadataStore
 from .media_source import async_register_http_views
 

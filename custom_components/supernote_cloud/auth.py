@@ -6,6 +6,11 @@ from typing import cast
 
 import aiohttp
 
+from supernote.cloud.auth import AbstractAuth
+from supernote.cloud.login_client import LoginClient
+from supernote.cloud.client import Client
+from supernote.cloud.exceptions import SupernoteException
+
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ACCESS_TOKEN, CONF_PASSWORD, CONF_USERNAME
@@ -13,8 +18,6 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
 
 from .const import CONF_TOKEN_TIMESTAMP, TOKEN_LIFEIME
-from .supernote_client.auth import AbstractAuth, LoginClient, Client
-from .supernote_client.exceptions import SupernoteException
 
 _LOGGER = logging.getLogger(__name__)
 
