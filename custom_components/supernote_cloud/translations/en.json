@@ -10,6 +10,13 @@
           "password": "Password"
         }
       },
+      "sms": {
+        "title": "SMS Verification",
+        "description": "A verification code has been sent to your phone number.",
+        "data": {
+          "code": "Verification Code"
+        }
+      },
       "reauth_confirm": {
         "title": "[%key:common::config_flow::title::reauth%]",
         "description": "The Supernote Cloud integration needs to re-authenticate your account"
@@ -20,7 +27,8 @@
     },
     "error": {
       "auth_error": "Authentication error, check username, phone number or password.",
-      "api_error": "Error talking to Supernote Cloud API."
+      "api_error": "Error talking to Supernote Cloud API.",
+      "invalid_auth": "Invalid verification code."
     }
   }
 }
