@@ -7,7 +7,11 @@ from typing import Any
 import logging
 
 import voluptuous as vol
-from supernote.cloud.exceptions import SupernoteException, ApiException, SmsVerificationRequired
+from supernote.cloud.exceptions import (
+    SupernoteException,
+    ApiException,
+    SmsVerificationRequired,
+)
 from supernote.cloud.auth import ConstantAuth
 from supernote.cloud.login_client import LoginClient
 from supernote.cloud.client import Client
@@ -56,7 +60,7 @@ class SupernoteCloudConfigFlowHandler(ConfigFlow, domain=DOMAIN):
         """Initialize the config flow."""
         self._username: str | None = None
         self._password: str | None = None
-        self._sms_timestamp: float | None = None
+        self._sms_timestamp: str | None = None
 
     @staticmethod
     @callback
@@ -80,9 +84,7 @@ class SupernoteCloudConfigFlowHandler(ConfigFlow, domain=DOMAIN):
             login_client = LoginClient(Client(websession))
 
             try:
-                access_token = await login_client.login(
-                    self._username, self._password
-                )
+                access_token = await login_client.login(self._username, self._password)
                 return await self._async_create_supernote_entry(access_token)
             except SmsVerificationRequired as err:
                 self._sms_timestamp = err.timestamp
@@ -126,7 +128,7 @@ class SupernoteCloudConfigFlowHandler(ConfigFlow, domain=DOMAIN):
 
             try:
                 access_token = await login_client.sms_login(
-                    self._username, code, self._sms_timestamp
+                    self._username, code, self._sms_timestamp  # type: ignore[arg-type]
                 )
                 return await self._async_create_supernote_entry(access_token)
             except (ApiException, SupernoteException):
@@ -144,14 +146,16 @@ class SupernoteCloudConfigFlowHandler(ConfigFlow, domain=DOMAIN):
             errors=errors or None,
         )
 
-    async def _async_create_supernote_entry(self, access_token: str) -> ConfigFlowResult:
+    async def _async_create_supernote_entry(
+        self, access_token: str
+    ) -> ConfigFlowResult:
         """Create the config entry."""
         # Verify the API works and get user info
         websession = async_get_clientsession(self.hass)
         supernote_client = SupernoteCloudClient(
             Client(websession, auth=ConstantAuth(access_token))
         )
-        user_response = await supernote_client.query_user(self._username)
+        user_response = await supernote_client.query_user(self._username)  # type: ignore[arg-type]
 
         await self.async_set_unique_id(str(user_response.user_id))
 
@@ -161,7 +165,7 @@ class SupernoteCloudConfigFlowHandler(ConfigFlow, domain=DOMAIN):
                 self.context["entry_id"]
             )
             return self.async_update_reload_and_abort(
-                reauth_entry,
+                reauth_entry,  # type: ignore[arg-type]
                 title=user_response.user_name,
                 data={},
                 options={

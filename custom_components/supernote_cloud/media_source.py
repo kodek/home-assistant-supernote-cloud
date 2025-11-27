@@ -187,7 +187,14 @@ class ItemContentView(HomeAssistantView):
             return Response(status=400, text=msg)
         store = entry.runtime_data
 
-        folder_contents = await store.get_folder_contents(identifier.parent_folder_id)
+        try:
+            folder_contents = await store.get_folder_contents(
+                identifier.parent_folder_id
+            )
+        except ApiException as err:
+            _LOGGER.error("Failed to fetch folder contents: %s", err)
+            return Response(status=500, text=str(err))
+
         if folder_contents is None:
             msg = f"Could not find folder contents for {identifier}"
             _LOGGER.error(msg)

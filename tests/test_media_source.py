@@ -5,6 +5,7 @@ from unittest.mock import patch
 from http import HTTPStatus
 
 from homeassistant.components.media_player.errors import BrowseError
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.components.media_source import (
     URI_SCHEME,
     async_browse_media,
@@ -372,3 +373,52 @@ async def test_authentication_error(
     assert len(flows) == 1
     result = flows[0]
     assert result["step_id"] == "reauth_confirm"
+
+
+@pytest.mark.usefixtures("setup_integration")
+async def test_token_refresh_failure_triggers_reauth(
+    hass: HomeAssistant,
+    config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test that token refresh failure triggers reauth."""
+
+    # Expire the token
+    hass.config_entries.async_update_entry(
+        config_entry,
+        options={
+            **config_entry.options,
+            "username": "user-name",
+            "password": "some-password",
+            "token_timestamp": 0,
+        },
+    )
+
+    set_up_csrf_mock(aioclient_mock)
+
+    # Mock login failure with verification code requirement
+    aioclient_mock.post(
+        "https://cloud.supernote.com/api/official/user/query/random/code",
+        json={
+            "randomCode": "abcdef",
+            "timestamp": "17276692307051",
+        },
+    )
+    aioclient_mock.post(
+        "https://cloud.supernote.com/api/official/user/account/login/new",
+        json={
+            "success": False,
+            "msg": "Please use the verification code to verify your identity.",
+        },
+    )
+
+    # Browsing should trigger token refresh, which fails
+    with pytest.raises(ConfigEntryAuthFailed):
+        await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}/{ROOT_FOLDER_PATH}")
+
+    await hass.async_block_till_done()
+
+    # Verify reauth flow was started
+    flows = hass.config_entries.flow.async_progress()
+    assert len(flows) == 1
+    assert flows[0]["context"]["source"] == "reauth"

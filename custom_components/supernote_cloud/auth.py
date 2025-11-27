@@ -14,7 +14,7 @@ from supernote.cloud.exceptions import SupernoteException
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ACCESS_TOKEN, CONF_PASSWORD, CONF_USERNAME
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, ConfigEntryAuthFailed
 from homeassistant.util import dt as dt_util
 
 from .const import CONF_TOKEN_TIMESTAMP, TOKEN_LIFEIME
@@ -62,6 +62,11 @@ class ConfigEntryAuth(AbstractAuth):
             )
         except SupernoteException as err:
             _LOGGER.debug("Login api exception: %s", err)
+            if "verification code" in str(err):
+                self._entry.async_start_reauth(self._hass)
+                raise ConfigEntryAuthFailed(
+                    f"Verification code required: {err}"
+                ) from err
             raise HomeAssistantError(f"API Error: {err}") from err
 
         self._hass.config_entries.async_update_entry(
