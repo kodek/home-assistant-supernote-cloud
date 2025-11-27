@@ -372,3 +372,93 @@ async def test_duplicate_config_entry(
     assert result.get("reason") == "already_configured"
 
     assert len(mock_setup.mock_calls) == 0
+
+async def test_sms_flow(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Test the SMS verification flow."""
+
+    # 1. Initial Login - Fails with SMS requirement
+    aioclient_mock.post(
+        "https://cloud.supernote.com/api/official/user/query/random/code",
+        json={
+            "randomCode": "abcdef",
+            "timestamp": "1234567890",
+        },
+    )
+
+    aioclient_mock.post(
+        "https://cloud.supernote.com/api/official/user/account/login/new",
+        json={
+            "success": False,
+            "msg": "verification code required",
+        },
+    )
+
+    # 2. Request SMS Code
+    aioclient_mock.post(
+        "https://cloud.supernote.com/api/user/validcode/pre-auth",
+        json={
+            "success": True,
+            "token": "pre-auth-token",
+        },
+    )
+
+    aioclient_mock.post(
+        "https://cloud.supernote.com/api/user/sms/validcode/send",
+        json={
+            "success": True,
+        },
+    )
+
+    # 3. SMS Login
+    aioclient_mock.post(
+        "https://cloud.supernote.com/api/official/user/sms/login",
+        json={
+            "success": True,
+            "token": "access-token-sms",
+        },
+    )
+
+    # 4. User Query (for creating entry)
+    aioclient_mock.post(
+        "https://cloud.supernote.com/api/user/query",
+        json={
+            "success": True,
+            "birthday": "2000-01-20T15:00:00.000Z",
+            "countryCode": "1",
+            "userName": "sms-user",
+            "userId": "12345",
+        },
+    )
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "user"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_USERNAME: "test-user",
+            CONF_PASSWORD: "test-password",
+        },
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "sms"
+    assert result["errors"] is None
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            "code": "123456",
+        },
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["title"] == "sms-user"
+    assert result["options"][CONF_ACCESS_TOKEN] == "access-token-sms"
+    assert result["options"][CONF_USERNAME] == "test-user"
