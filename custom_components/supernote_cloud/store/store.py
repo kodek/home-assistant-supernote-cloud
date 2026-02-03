@@ -229,7 +229,7 @@ class NotebookFile:
         note_name_base = pathlib.Path(note_name).stem
         pages = []
         for page_num in range(self._notebook.get_total_pages()):
-            page_id = self._notebook.get_page(page_num).get_pageid()  # type: ignore[no-untyped-call]
+            page_id = self._notebook.get_page(page_num).get_pageid()
             page_name = f"{note_name_base}-{page_num:03d}-{page_id}"
             pages.append(page_name)
         self._pages = pages
@@ -258,8 +258,8 @@ class NotebookFile:
         local_png_path = self.local_png_path(page_num)
 
         def _write_png() -> None:
-            converter = supernote.converter.ImageConverter(self._notebook)  # type: ignore[no-untyped-call]
-            content = converter.convert(page_num)  # type: ignore[no-untyped-call]
+            converter = supernote.converter.ImageConverter(self._notebook)
+            content = converter.convert(page_num)
             content.save(str(local_png_path), format="PNG")
 
         loop = asyncio.get_running_loop()

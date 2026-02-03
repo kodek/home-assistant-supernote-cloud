@@ -15,7 +15,6 @@ will query the Supernote Cloud API to look for backups, and caches responses for
 one hour to reduce load on the server. Any notebook contents md5 hashes are compared
 to the contents on the server and sync'd down to local disk when there is a difference.
 
-
 ## Development
 
 Library for efficient backup based on:
@@ -40,22 +39,13 @@ Library for efficient backup based on:
 - [x] fully async io
 - [x] invalidate .png files when the notebook contents change
 
-
 ## Local Development
 
 ### Pre-requisites
 
 ```bash
-$ uv venv
-$ source .venv/bin/activate
-$ uv pip install -r requirements_dev.txt --prerelease=allow
-```
-
-### Prepare Home Assistant
-
-```bash
-$ export PYTHONPATH="${PYTHONPATH}:${PWD}"
-$ hass -c /workspaces/config --script ensure_config
+$ script/bootstrap
+$ script/setup
 ```
 
 ### Run Home Assistant
@@ -63,5 +53,5 @@ $ hass -c /workspaces/config --script ensure_config
 From then on run home assistant:
 
 ```bash
-$ hass -c /workspaces/config
+$ script/server
 ```
