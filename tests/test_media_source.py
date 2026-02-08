@@ -166,11 +166,10 @@ async def test_browse_folders(
     )
 
     # Mock list_folder for resolution
-    mock_folder = MagicMock()
     mock_file_info = MagicMock()
     mock_file_info.id = "33333333333"
-    mock_folder.children = MagicMock()
-    mock_folder.children.get.return_value = mock_file_info
+    mock_folder = MagicMock()
+    mock_folder.entries = [mock_file_info]
     mock_supernote.device.list_folder = AsyncMock(return_value=mock_folder)
 
     browse = await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}/{note_path}")
@@ -193,10 +192,7 @@ async def test_browse_folders(
     assert not browse.children
 
     # Resolve media
-    mock_supernote.device.get_note_png_pages.return_value = [
-        b"page1_content",
-        b"page2_content",
-    ]
+    mock_supernote.client.get_content.return_value = b"page2_content"
 
     media = await async_resolve_media(
         hass, f"{URI_SCHEME}{DOMAIN}/{page_path_prefix}/1", None
@@ -263,16 +259,17 @@ async def test_item_content_invalid_identifier(
     )
     assert response.status == HTTPStatus.BAD_REQUEST
 
-    mock_folder = MagicMock()
     mock_file_info = MagicMock()
     mock_file_info.id = "33333333333"
 
-    # Configure children behavior
-    mock_folder.children = MagicMock()
-    mock_folder.children.get.return_value = mock_file_info
+    mock_folder = MagicMock()
+    mock_folder.entries = [mock_file_info]
 
     mock_supernote.device.list_folder = AsyncMock(return_value=mock_folder)
-    mock_supernote.device.get_note_png_pages.return_value = [b"page1"]
+    mock_supernote.device.note_to_png.return_value = PngVO(
+        png_page_vo_list=[PngPageVO(page_no=1, url="http://example.com/1.png")]
+    )
+    mock_supernote.client.get_content.return_value = b"page1"
 
     client = await hass_client()
     response = await client.get(

@@ -200,17 +200,35 @@ class ItemContentView(HomeAssistantView):
             msg = f"Could not find folder contents for {identifier}"
             _LOGGER.error(msg)
             return Response(status=400, text=msg)
-        if (file_info := folder_contents.children.get(identifier.note_file_id)) is None:
+
+        # Find file_info in entries
+        file_info = next(
+            (
+                item
+                for item in folder_contents.entries
+                if str(item.id) == str(identifier.note_file_id)
+            ),
+            None,
+        )
+        if file_info is None:
             msg = f"Could not find file {identifier.note_file_id} in parent {identifier.parent_folder_id}"
             _LOGGER.error(msg)
             return Response(status=400, text=msg)
 
         try:
-            # get_note_png_pages returns list[bytes]
-            pages = await sn.device.get_note_png_pages(file_info.id)
-            if identifier.page_id is None or identifier.page_id >= len(pages):
+            png_pages = await sn.device.note_to_png(int(file_info.id))
+            if (
+                png_pages.png_page_vo_list is None
+                or identifier.page_id is None
+                or identifier.page_id >= len(png_pages.png_page_vo_list)
+            ):
                 return Response(status=404, text="Page not found")
-            content = pages[identifier.page_id]
+
+            page_vo = png_pages.png_page_vo_list[identifier.page_id]
+            if not page_vo.url:
+                return Response(status=404, text="Page URL not found")
+
+            content = await sn.client.get_content(page_vo.url)
             return Response(body=content, content_type="image/png")
         except ApiException as err:
             _LOGGER.error("Failed to fetch note content: %s", err)
