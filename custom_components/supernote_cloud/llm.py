@@ -109,9 +109,58 @@ class SearchTool(Tool):
         )
 
 
-# TODO: Implement TranscriptTool when API supports it
-# class TranscriptTool(Tool):
-#     ...
+class TranscriptTool(Tool):
+    """Supernote transcript tool."""
+
+    name = "get_supernote_transcript"
+    description = "Retrieve the text transcript for a Supernote notebook by file ID."
+    parameters = vol.Schema(
+        {
+            vol.Required("file_id", description="The ID of the notebook."): vol.Coerce(
+                int
+            ),
+            vol.Optional(
+                "start_index",
+                description="Optional 0-based start page index (inclusive).",
+            ): vol.Coerce(int),
+            vol.Optional(
+                "end_index",
+                description="Optional 0-based end page index (inclusive).",
+            ): vol.Coerce(int),
+        }
+    )
+
+    def __init__(self, entry: SupernoteCloudConfigEntry) -> None:
+        """Initialize the tool."""
+        self._entry = entry
+
+    async def async_call(
+        self, hass: HomeAssistant, tool_input: ToolInput, llm_context: LLMContext
+    ) -> JsonObjectType:
+        """Call the tool."""
+        args = tool_input.tool_args
+
+        # Instantiate ExtendedClient on the fly
+        sn = self._entry.runtime_data
+        extended = ExtendedClient(sn.client)
+
+        try:
+            result = await extended.get_transcript(
+                file_id=args["file_id"],
+                start_index=args.get("start_index"),
+                end_index=args.get("end_index"),
+            )
+        except Exception as err:
+            raise HomeAssistantError(
+                f"Error fetching Supernote transcript: {err}"
+            ) from err
+
+        return cast(
+            JsonObjectType,
+            {
+                "transcript": result.transcript,
+            },
+        )
 
 
 class SupernoteLLMApi(API):
@@ -132,9 +181,10 @@ class SupernoteLLMApi(API):
         """Return the instance of the API."""
         return APIInstance(
             api=self,
-            api_prompt="You have access to the user's Supernote notebooks via search tools.",
+            api_prompt="You have access to the user's Supernote notebooks via search and transcript tools.",
             llm_context=llm_context,
             tools=[
                 SearchTool(self._entry),
+                TranscriptTool(self._entry),
             ],
         )

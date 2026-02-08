@@ -7,9 +7,16 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import llm
 
-from custom_components.supernote_cloud.llm import SearchTool
+from custom_components.supernote_cloud.llm import (
+    SearchTool,
+    TranscriptTool,
+)
 
-from supernote.models.extended import WebSearchResponseVO, SearchResultVO
+from supernote.models.extended import (
+    WebSearchResponseVO,
+    SearchResultVO,
+    WebTranscriptResponseVO,
+)
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -27,13 +34,30 @@ async def test_search_tool_initialization(
     )
 
 
-@pytest.mark.usefixtures("setup_integration")
+@pytest.mark.usefixtures("mock_supernote")
+async def test_transcript_tool_initialization(
+    hass: HomeAssistant, config_entry: MockConfigEntry
+):
+    """Test initializing the transcript tool."""
+    tool = TranscriptTool(config_entry)
+    assert tool.name == "get_supernote_transcript"
+    assert (
+        tool.description
+        == "Retrieve the text transcript for a Supernote notebook by file ID."
+    )
+
+
+@pytest.mark.usefixtures("mock_supernote")
 async def test_search_tool_call_success(
     hass: HomeAssistant,
     config_entry: MockConfigEntry,
     mock_supernote: AsyncMock,
 ):
     """Test calling the search tool successfully."""
+    # Ensure runtime_data is mock_supernote
+    config_entry.runtime_data = mock_supernote
+
+    # Setup mock response
     mock_result = SearchResultVO(
         file_id=123,
         file_name="Test Note",
@@ -45,6 +69,7 @@ async def test_search_tool_call_success(
     )
     mock_response = WebSearchResponseVO(results=[mock_result])
 
+    # Configure post_json to return the response
     mock_supernote.client.post_json = AsyncMock(return_value=mock_response)
 
     tool = SearchTool(config_entry)
@@ -67,6 +92,7 @@ async def test_search_tool_call_success(
         ]
     }
 
+    # Verify post_json call
     mock_supernote.client.post_json.assert_called_once()
     args, kwargs = mock_supernote.client.post_json.call_args
     assert args[0] == "/api/extended/search"
@@ -74,13 +100,51 @@ async def test_search_tool_call_success(
     assert kwargs["json"]["topN"] == 3
 
 
-@pytest.mark.usefixtures("setup_integration")
+@pytest.mark.usefixtures("mock_supernote")
+async def test_transcript_tool_call_success(
+    hass: HomeAssistant,
+    config_entry: MockConfigEntry,
+    mock_supernote: AsyncMock,
+):
+    """Test calling the transcript tool successfully."""
+    # Ensure runtime_data is mock_supernote
+    config_entry.runtime_data = mock_supernote
+
+    # Setup mock response
+    mock_response = WebTranscriptResponseVO(transcript="This is the full transcript.")
+
+    # Configure post_json to return the response
+    mock_supernote.client.post_json = AsyncMock(return_value=mock_response)
+
+    tool = TranscriptTool(config_entry)
+
+    tool_input = llm.ToolInput(
+        tool_name="get_supernote_transcript", tool_args={"file_id": 12345}
+    )
+
+    result = await tool.async_call(hass, tool_input, AsyncMock())
+
+    assert result == {
+        "transcript": "This is the full transcript.",
+    }
+
+    # Verify post_json call
+    mock_supernote.client.post_json.assert_called_once()
+    args, kwargs = mock_supernote.client.post_json.call_args
+    assert args[0] == "/api/extended/transcript"
+    assert kwargs["json"]["fileId"] == 12345
+
+
+@pytest.mark.usefixtures("mock_supernote")
 async def test_search_tool_call_error(
     hass: HomeAssistant,
     config_entry: MockConfigEntry,
     mock_supernote: AsyncMock,
 ):
     """Test calling the search tool with an error."""
+    # Ensure runtime_data is mock_supernote
+    config_entry.runtime_data = mock_supernote
+
     mock_supernote.client.post_json = AsyncMock(side_effect=Exception("API Error"))
 
     tool = SearchTool(config_entry)
@@ -90,4 +154,26 @@ async def test_search_tool_call_error(
     )
 
     with pytest.raises(HomeAssistantError, match="Error searching Supernote"):
+        await tool.async_call(hass, tool_input, AsyncMock())
+
+
+@pytest.mark.usefixtures("mock_supernote")
+async def test_transcript_tool_call_error(
+    hass: HomeAssistant,
+    config_entry: MockConfigEntry,
+    mock_supernote: AsyncMock,
+):
+    """Test calling the transcript tool with an error."""
+    # Ensure runtime_data is mock_supernote
+    config_entry.runtime_data = mock_supernote
+
+    mock_supernote.client.post_json = AsyncMock(side_effect=Exception("API Error"))
+
+    tool = TranscriptTool(config_entry)
+
+    tool_input = llm.ToolInput(
+        tool_name="get_supernote_transcript", tool_args={"file_id": 12345}
+    )
+
+    with pytest.raises(HomeAssistantError, match="Error fetching Supernote transcript"):
         await tool.async_call(hass, tool_input, AsyncMock())
