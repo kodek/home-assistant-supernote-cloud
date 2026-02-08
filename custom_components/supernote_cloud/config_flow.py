@@ -128,7 +128,9 @@ class SupernoteCloudConfigFlowHandler(ConfigFlow, domain=DOMAIN):
 
             try:
                 access_token = await login_client.sms_login(
-                    self._username, code, self._sms_timestamp  # type: ignore[arg-type]
+                    self._username,
+                    code,
+                    self._sms_timestamp,  # type: ignore[arg-type]
                 )
                 return await self._async_create_supernote_entry(access_token)
             except (ApiException, SupernoteException):

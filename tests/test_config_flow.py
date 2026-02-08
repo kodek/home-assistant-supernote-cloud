@@ -210,13 +210,9 @@ async def test_reauth_flow(
     result = flows[0]
     assert result["step_id"] == "reauth_confirm"
 
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"],
-        {}
-    )
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     assert result.get("type") is FlowResultType.FORM
     assert result.get("step_id") == "user"
-
 
     with patch(
         f"custom_components.{DOMAIN}.async_setup_entry", return_value=True
@@ -248,7 +244,6 @@ async def test_reauth_flow(
 
     entries = hass.config_entries.async_entries(DOMAIN)
     assert len(entries) == 1
-
 
 
 @freeze_time("2021-01-01 12:00:00")
@@ -292,13 +287,9 @@ async def test_reauth_config_entry_mismatch(
     result = flows[0]
     assert result["step_id"] == "reauth_confirm"
 
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"],
-        {}
-    )
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     assert result.get("type") is FlowResultType.FORM
     assert result.get("step_id") == "user"
-
 
     with patch(
         f"custom_components.{DOMAIN}.async_setup_entry", return_value=True
@@ -315,7 +306,6 @@ async def test_reauth_config_entry_mismatch(
     assert result.get("reason") == "unique_id_mismatch"
 
     assert len(mock_setup.mock_calls) == 0
-
 
 
 @freeze_time("2021-01-01 12:00:00")
@@ -352,7 +342,7 @@ async def test_duplicate_config_entry(
             "birthday": "2000-01-20T15:00:00.000Z",
             "countryCode": "1",
             "userName": "user-name",
-            "userId": CONFIG_ENTRY_ID
+            "userId": CONFIG_ENTRY_ID,
         },
     )
 
@@ -372,6 +362,7 @@ async def test_duplicate_config_entry(
     assert result.get("reason") == "already_configured"
 
     assert len(mock_setup.mock_calls) == 0
+
 
 async def test_sms_flow(
     hass: HomeAssistant,
