@@ -17,6 +17,8 @@ from .auth import ConfigEntryAuth
 from .types import SupernoteCloudConfigEntry
 from .media_source import async_register_http_views
 
+from .llm import async_register_llm_apis
+
 __all__ = ["DOMAIN"]
 
 _LOGGER = logging.getLogger(__name__)
@@ -46,6 +48,7 @@ async def async_setup_entry(
         entry,
         platforms=PLATFORMS,
     )
+    await async_register_llm_apis(hass, entry)
     return True
 
 
