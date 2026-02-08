@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import logging
-import pathlib
 
-from supernote.cloud.client import Client
-from supernote.cloud.cloud_client import SupernoteCloudClient
+from supernote.client.api import Supernote
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
@@ -14,10 +12,9 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import aiohttp_client
 from homeassistant.helpers.typing import ConfigType
 
-from .const import DOMAIN
+from .const import DOMAIN, CONF_HOST, DEFAULT_HOST
 from .auth import ConfigEntryAuth
 from .types import SupernoteCloudConfigEntry
-from .store.store import LocalStore, MetadataStore
 from .media_source import async_register_http_views
 
 __all__ = ["DOMAIN"]
@@ -25,8 +22,6 @@ __all__ = ["DOMAIN"]
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: tuple[Platform] = ()  # type: ignore[assignment]
-
-STORE_PATH = f".storage/{DOMAIN}"
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -40,26 +35,12 @@ async def async_setup_entry(
 ) -> bool:
     """Set up a config entry."""
 
-    store_path = pathlib.Path(hass.config.path(STORE_PATH)) / str(entry.entry_id)
     session = aiohttp_client.async_get_clientsession(hass)
-    client = Client(session, auth=ConfigEntryAuth(hass, entry, session))
-    supernote_client = SupernoteCloudClient(client)
+    host = entry.options.get(CONF_HOST, DEFAULT_HOST)
+    auth = ConfigEntryAuth(hass, entry, session)
+    sn = Supernote.from_auth(auth, host=host, session=session)
 
-    def reauth_cb() -> None:
-        _LOGGER.debug("Reauthenticating")
-        entry.async_start_reauth(hass)
-
-    store = LocalStore(
-        MetadataStore(hass, store_path), store_path, supernote_client, reauth_cb
-    )
-
-    # run in executor thread
-    def mkdir() -> None:
-        store_path.mkdir(parents=True, exist_ok=True)
-
-    await hass.async_add_executor_job(mkdir)
-
-    entry.runtime_data = store
+    entry.runtime_data = sn
 
     await hass.config_entries.async_forward_entry_setups(
         entry,

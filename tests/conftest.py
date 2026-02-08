@@ -2,7 +2,7 @@
 
 from collections.abc import Generator, AsyncGenerator
 import logging
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 
 import pytest
 
@@ -16,7 +16,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
 from homeassistant.util import dt as dt_util
 
-from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
 )
@@ -54,6 +53,7 @@ async def mock_setup_integration(
     hass: HomeAssistant,
     config_entry: MockConfigEntry,
     platforms: list[Platform],
+    mock_supernote: AsyncMock,
 ) -> AsyncGenerator[None]:
     """Set up the integration."""
 
@@ -66,7 +66,7 @@ async def mock_setup_integration(
 @pytest.fixture(name="config_entry")
 async def mock_config_entry(
     hass: HomeAssistant,
-    aioclient_mock: AiohttpClientMocker,
+    mock_supernote: AsyncMock,
 ) -> MockConfigEntry:
     """Fixture to create a configuration entry."""
     config_entry = MockConfigEntry(
@@ -87,21 +87,36 @@ async def mock_config_entry(
     return config_entry
 
 
-def set_up_csrf_mock(
-    aioclient_mock: AiohttpClientMocker,
-) -> None:
-    """Set up CSRF mock responses."""
-    aioclient_mock.get(
-        "https://cloud.supernote.com/api/csrf",
-        headers={"X-XSRF-TOKEN": "csrf-token-1"},
-    )
-    aioclient_mock.post(
-        "https://cloud.supernote.com/api/user/query/token",
-        json={},
-    )
+@pytest.fixture(name="mock_supernote")
+def mock_supernote_fixture() -> Generator[AsyncMock, None, None]:
+    """Mock the Supernote client."""
+    # Force reload of the component modules to ensure they pick up the patch
+    import sys
 
+    for module in list(sys.modules.keys()):
+        if module.startswith("custom_components.supernote_cloud"):
+            del sys.modules[module]
 
-@pytest.fixture(autouse=True)
-def mock_csrf(aioclient_mock: AiohttpClientMocker) -> None:
-    """Fixture to mock CSRF requests."""
-    set_up_csrf_mock(aioclient_mock)
+    with patch("supernote.client.api.Supernote", autospec=True) as mock_sn_cls:
+        # Create the instance mock
+        mock_sn = mock_sn_cls.return_value
+
+        mock_sn.token = "access-token-1"
+
+        # WebClient and DeviceClient have async methods.
+        # we configure them to be AsyncMocks
+        mock_sn.web.list_query = AsyncMock()
+        mock_sn.web.path_query = AsyncMock()
+        mock_sn.web.query_user = AsyncMock()
+
+        mock_sn.device.note_to_png = AsyncMock()
+        mock_sn.device.get_note_png_pages = AsyncMock()
+        mock_sn.device.get_capacity = AsyncMock()
+        mock_sn.device.list_folder = AsyncMock()
+
+        # Class methods
+        mock_sn_cls.login = AsyncMock(return_value=mock_sn)
+        mock_sn_cls.from_token.return_value = mock_sn
+        mock_sn_cls.from_auth.return_value = mock_sn
+
+        yield mock_sn

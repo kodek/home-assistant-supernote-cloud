@@ -7,15 +7,14 @@ from typing import Any
 import logging
 
 import voluptuous as vol
-from supernote.cloud.exceptions import (
+from supernote.client.exceptions import (
     SupernoteException,
     ApiException,
     SmsVerificationRequired,
 )
-from supernote.cloud.auth import ConstantAuth
-from supernote.cloud.login_client import LoginClient
-from supernote.cloud.client import Client
-from supernote.cloud.cloud_client import SupernoteCloudClient
+from supernote.client.login_client import LoginClient
+from supernote.client.client import Client
+from supernote.client.api import Supernote
 
 from homeassistant.core import callback
 from homeassistant.config_entries import (
@@ -41,7 +40,12 @@ from homeassistant.const import (
     CONF_UNIQUE_ID,
 )
 
-from .const import DOMAIN, CONF_API_USERNAME, CONF_TOKEN_TIMESTAMP
+from .const import (
+    DOMAIN,
+    CONF_API_USERNAME,
+    CONF_TOKEN_TIMESTAMP,
+    CONF_HOST,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -60,6 +64,7 @@ class SupernoteCloudConfigFlowHandler(ConfigFlow, domain=DOMAIN):
         """Initialize the config flow."""
         self._username: str | None = None
         self._password: str | None = None
+        self._host: str | None = None
         self._sms_timestamp: str | None = None
 
     @staticmethod
@@ -79,17 +84,19 @@ class SupernoteCloudConfigFlowHandler(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             self._username = user_input[CONF_USERNAME]
             self._password = user_input[CONF_PASSWORD]
+            self._host = user_input[CONF_HOST]
 
             websession = async_get_clientsession(self.hass)
-            login_client = LoginClient(Client(websession))
-
             try:
-                access_token = await login_client.login(self._username, self._password)
+                sn = await Supernote.login(
+                    self._username, self._password, host=self._host, session=websession
+                )
+                access_token = sn.token
                 return await self._async_create_supernote_entry(access_token)
             except SmsVerificationRequired as err:
                 self._sms_timestamp = err.timestamp
-                # Request SMS code
                 try:
+                    login_client = self._async_get_login_client()
                     await login_client.request_sms_code(self._username)
                 except (ApiException, SupernoteException):
                     errors["base"] = "api_error"
@@ -110,6 +117,9 @@ class SupernoteCloudConfigFlowHandler(ConfigFlow, domain=DOMAIN):
                             type=selector.TextSelectorType.PASSWORD
                         ),
                     ),
+                    vol.Required(CONF_HOST): selector.TextSelector(
+                        selector.TextSelectorConfig(),
+                    ),
                 }
             ),
             errors=errors or None,
@@ -123,14 +133,13 @@ class SupernoteCloudConfigFlowHandler(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             code = user_input["code"]
-            websession = async_get_clientsession(self.hass)
-            login_client = LoginClient(Client(websession))
+            login_client = self._async_get_login_client()
 
             try:
                 access_token = await login_client.sms_login(
                     self._username,
                     code,
-                    self._sms_timestamp,  # type: ignore[arg-type]
+                    self._sms_timestamp,
                 )
                 return await self._async_create_supernote_entry(access_token)
             except (ApiException, SupernoteException):
@@ -148,18 +157,38 @@ class SupernoteCloudConfigFlowHandler(ConfigFlow, domain=DOMAIN):
             errors=errors or None,
         )
 
+    @callback
+    def _async_get_login_client(self) -> LoginClient:
+        """Get a login client."""
+        return LoginClient(Client(async_get_clientsession(self.hass), host=self._host))
+
     async def _async_create_supernote_entry(
         self, access_token: str
     ) -> ConfigFlowResult:
         """Create the config entry."""
         # Verify the API works and get user info
         websession = async_get_clientsession(self.hass)
-        supernote_client = SupernoteCloudClient(
-            Client(websession, auth=ConstantAuth(access_token))
-        )
-        user_response = await supernote_client.query_user(self._username)  # type: ignore[arg-type]
+        sn = Supernote.from_token(access_token, host=self._host, session=websession)
 
-        await self.async_set_unique_id(str(user_response.user_id))
+        # Let's try to get something to confirm it works.
+        try:
+            await sn.device.get_capacity()
+        except SupernoteException:
+            # If we can't even get capacity, maybe token is bad or host is wrong.
+            raise
+
+        unique_id = self._username
+        await self.async_set_unique_id(unique_id)
+
+        options = {
+            CONF_USERNAME: self._username,
+            CONF_PASSWORD: self._password,
+            CONF_ACCESS_TOKEN: access_token,
+            CONF_UNIQUE_ID: unique_id,
+            CONF_API_USERNAME: self._username,
+            CONF_TOKEN_TIMESTAMP: dt_util.now().timestamp(),
+            CONF_HOST: self._host,
+        }
 
         if self.source == SOURCE_REAUTH:
             self._abort_if_unique_id_mismatch()
@@ -167,32 +196,18 @@ class SupernoteCloudConfigFlowHandler(ConfigFlow, domain=DOMAIN):
                 self.context["entry_id"]
             )
             return self.async_update_reload_and_abort(
-                reauth_entry,  # type: ignore[arg-type]
-                title=user_response.user_name,
+                reauth_entry,
+                title=self._username,
                 data={},
-                options={
-                    CONF_USERNAME: self._username,
-                    CONF_PASSWORD: self._password,
-                    CONF_ACCESS_TOKEN: access_token,
-                    CONF_UNIQUE_ID: str(user_response.user_id),
-                    CONF_API_USERNAME: user_response.user_name,
-                    CONF_TOKEN_TIMESTAMP: dt_util.now().timestamp(),
-                },
+                options=options,
             )
 
         self._abort_if_unique_id_configured()
 
         return self.async_create_entry(
-            title=user_response.user_name,
+            title=self._username,
             data={},
-            options={
-                CONF_USERNAME: self._username,
-                CONF_PASSWORD: self._password,
-                CONF_ACCESS_TOKEN: access_token,
-                CONF_UNIQUE_ID: str(user_response.user_id),
-                CONF_API_USERNAME: user_response.user_name,
-                CONF_TOKEN_TIMESTAMP: dt_util.now().timestamp(),
-            },
+            options=options,
         )
 
     async def async_step_reauth(

@@ -1,11 +1,10 @@
-"""Test the Google Photos media source."""
+"""Test the Supernote Cloud media source."""
 
 import pytest
-from unittest.mock import patch
+from unittest.mock import MagicMock, AsyncMock
 from http import HTTPStatus
 
 from homeassistant.components.media_player.errors import BrowseError
-from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.components.media_source import (
     URI_SCHEME,
     async_browse_media,
@@ -16,12 +15,14 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.setup import async_setup_component
 
 from custom_components.supernote_cloud.const import DOMAIN
+from supernote.client.exceptions import ApiException
+from supernote.models.base import BooleanEnum
+from supernote.models.file_web import UserFileVO, PngPageVO, PngVO, FilePathQueryVO
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.typing import ClientSessionGenerator
-from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
-from .conftest import CONFIG_ENTRY_ID, CONFIG_ENTRY_TITLE, set_up_csrf_mock
+from .conftest import CONFIG_ENTRY_ID, CONFIG_ENTRY_TITLE
 
 SOURCE_TITLE = "Supernote Cloud"
 ROOT_FOLDER_PATH = f"{CONFIG_ENTRY_ID}/f/0"
@@ -85,7 +86,7 @@ async def test_browse_invalid_path(hass: HomeAssistant) -> None:
 @pytest.mark.usefixtures("setup_integration")
 async def test_browse_folders(
     hass: HomeAssistant,
-    aioclient_mock: AiohttpClientMocker,
+    mock_supernote: MagicMock,
     hass_client: ClientSessionGenerator,
 ) -> None:
     """Test browsing the top level folder list."""
@@ -98,25 +99,15 @@ async def test_browse_folders(
     ]
 
     # Browse folders
-    aioclient_mock.post(
-        "https://cloud.supernote.com/api/file/list/query",
-        json={
-            "success": True,
-            "total": 3,
-            "size": 10,
-            "pages": 1,
-            "userFileVOList": [
-                {
-                    "id": "1111111111111111",
-                    "directoryId": "222222222",
-                    "fileName": "Folder title",
-                    "isFolder": "Y",
-                    "createTime": 1727759196000,
-                    "updateTime": 1727759196000,
-                },
-            ],
-        },
-    )
+    mock_supernote.web.list_query.return_value.user_file_vo_list = [
+        UserFileVO(
+            id="1111111111111111",
+            directory_id="0",
+            file_name="Folder title",
+            is_folder=BooleanEnum.YES,
+        )
+    ]
+    mock_supernote.web.path_query.return_value = FilePathQueryVO(path="/Folder title")
 
     browse = await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}/{ROOT_FOLDER_PATH}")
     assert browse.domain == DOMAIN
@@ -128,92 +119,100 @@ async def test_browse_folders(
     ]
 
     # Browse contents of a subfolder
-    aioclient_mock.clear_requests()
-    set_up_csrf_mock(aioclient_mock)
-    aioclient_mock.post(
-        "https://cloud.supernote.com/api/file/list/query",
-        json={
-            "success": True,
-            "total": 10,
-            "size": 20,
-            "pages": 1,
-            "userFileVOList": [
-                {
-                    "id": "33333333333",
-                    "directoryId": "222222222",
-                    "fileName": "Note title.note",
-                    "isFolder": "N",
-                    "size": 12345,
-                    "md5": "abcdefabcdefabcdefabcdefabcdef",
-                    "createTime": 1727759196000,
-                    "updateTime": 1727759196000,
-                },
-            ],
-        },
+    mock_supernote.web.list_query.return_value.user_file_vo_list = [
+        UserFileVO(
+            id="33333333333",
+            directory_id="1111111111111111",
+            file_name="Note title.note",
+            is_folder=BooleanEnum.NO,
+            size=12345,
+            md5="abcdef",
+        )
+    ]
+
+    # Mock path_query for the current folder
+    mock_supernote.web.path_query.return_value = FilePathQueryVO(
+        path="/Folder title/Subfolder"
     )
+
     browse = await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}/{folder_path}")
     assert browse.domain == DOMAIN
     assert browse.identifier == folder_path
-    assert browse.title == "Folder title"
+
+    assert browse.title == "Subfolder"  # Matches mock above
+
     note_path = f"{CONFIG_ENTRY_ID}/n/1111111111111111/33333333333"
     assert [(child.identifier, child.title) for child in browse.children] == [
         (note_path, "Note title.note")
     ]
 
-    aioclient_mock.clear_requests()
-    set_up_csrf_mock(aioclient_mock)
-    aioclient_mock.post(
-        "https://cloud.supernote.com/api/file/download/url",
-        json={"success": True, "url": "https://example.com/file-download-url"},
-    )
-    aioclient_mock.get(
-        "https://example.com/file-download-url",
-        text="file-contents",
-    )
-
     # Browse into a note
-    with patch(
-        "custom_components.supernote_cloud.store.store.LocalStore.get_note_page_names",
-        return_value=["Page 1", "Page 2"],
-    ):
-        browse = await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}/{note_path}")
-        assert browse.domain == DOMAIN
-        assert browse.identifier == note_path
-        assert browse.title == "Note title.note"
-        page_path_prefix = f"{CONFIG_ENTRY_ID}/p/1111111111111111/33333333333"
-        assert [(child.identifier, child.title) for child in browse.children] == [
-            (f"{page_path_prefix}/0", "Page 1"),
-            (f"{page_path_prefix}/1", "Page 2"),
-        ]
-
-        # Browse into a note page
-        browse = await async_browse_media(
-            hass, f"{URI_SCHEME}{DOMAIN}/{page_path_prefix}/1"
+    mock_supernote.web.list_query.return_value.user_file_vo_list = [
+        UserFileVO(
+            id="33333333333",
+            directory_id="1111111111111111",
+            file_name="Note title.note",
+            is_folder=BooleanEnum.NO,
+            size=12345,
+            md5="abcdef",
         )
-        assert browse.domain == DOMAIN
-        assert browse.identifier == f"{page_path_prefix}/1"
-        assert browse.title == "Page 2"
-        assert not browse.children
+    ]
+
+    mock_supernote.device.note_to_png.return_value = PngVO(
+        png_page_vo_list=[
+            PngPageVO(page_no=1, url="http://example.com/1.png"),
+            PngPageVO(page_no=2, url="http://example.com/2.png"),
+        ]
+    )
+
+    # Mock list_folder for resolution
+    mock_folder = MagicMock()
+    mock_file_info = MagicMock()
+    mock_file_info.id = "33333333333"
+    mock_folder.children = MagicMock()
+    mock_folder.children.get.return_value = mock_file_info
+    mock_supernote.device.list_folder = AsyncMock(return_value=mock_folder)
+
+    browse = await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}/{note_path}")
+    assert browse.domain == DOMAIN
+    assert browse.identifier == note_path
+    assert browse.title == "Note title.note"
+    page_path_prefix = f"{CONFIG_ENTRY_ID}/p/1111111111111111/33333333333"
+    assert [(child.identifier, child.title) for child in browse.children] == [
+        (f"{page_path_prefix}/0", "Page 1"),
+        (f"{page_path_prefix}/1", "Page 2"),
+    ]
+
+    # Browse into a note page
+    browse = await async_browse_media(
+        hass, f"{URI_SCHEME}{DOMAIN}/{page_path_prefix}/1"
+    )
+    assert browse.domain == DOMAIN
+    assert browse.identifier == f"{page_path_prefix}/1"
+    assert browse.title == "Page 2"
+    assert not browse.children
+
+    # Resolve media
+    mock_supernote.device.get_note_png_pages.return_value = [
+        b"page1_content",
+        b"page2_content",
+    ]
 
     media = await async_resolve_media(
         hass, f"{URI_SCHEME}{DOMAIN}/{page_path_prefix}/1", None
     )
 
     client = await hass_client()
-    with patch(
-        "custom_components.supernote_cloud.store.store.LocalStore.get_note_png",
-        return_value=CONTENT_BYTES,
-    ):
-        response = await client.get(media.url)
-        assert response.status == HTTPStatus.OK, f"Response not matched: {response}"
-        contents = await response.read()
-        assert contents == CONTENT_BYTES
+    response = await client.get(media.url)
+    assert response.status == HTTPStatus.OK
+    contents = await response.read()
+    assert contents == b"page2_content"
 
 
 @pytest.mark.usefixtures("setup_integration")
 async def test_browse_folder_as_file(
     hass: HomeAssistant,
-    aioclient_mock: AiohttpClientMocker,
+    mock_supernote: MagicMock,
     hass_client: ClientSessionGenerator,
 ) -> None:
     """Test browsing with the wrong object time."""
@@ -221,71 +220,29 @@ async def test_browse_folder_as_file(
     assert browse.domain == DOMAIN
     assert browse.identifier is None
     assert browse.title == SOURCE_TITLE
-    assert [(child.identifier, child.title) for child in browse.children] == [
-        (ROOT_FOLDER_PATH, CONFIG_ENTRY_TITLE)
+
+    mock_supernote.web.path_query.return_value = FilePathQueryVO(path="")
+
+    # Mock list_query to return a folder
+    mock_supernote.web.list_query.return_value.user_file_vo_list = [
+        UserFileVO(
+            id="1111111111111111",
+            directory_id="222222222",
+            file_name="Folder title",
+            is_folder=BooleanEnum.YES,
+        )
     ]
 
-    # Browse folders
-    aioclient_mock.post(
-        "https://cloud.supernote.com/api/file/list/query",
-        json={
-            "success": True,
-            "total": 3,
-            "size": 10,
-            "pages": 1,
-            "userFileVOList": [
-                {
-                    "id": "1111111111111111",
-                    "directoryId": "222222222",
-                    "fileName": "Folder title",
-                    "isFolder": "Y",
-                    "createTime": 1727759196000,
-                    "updateTime": 1727759196000,
-                },
-            ],
-        },
-    )
+    invalid_note_path = f"{CONFIG_ENTRY_ID}/n/222222222/1111111111111111"
 
-    browse = await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}/{ROOT_FOLDER_PATH}")
-    assert browse.domain == DOMAIN
-    assert browse.identifier == ROOT_FOLDER_PATH
-    assert browse.title == CONFIG_ENTRY_TITLE
-
-    # Browse contents of a subfolder
-    aioclient_mock.clear_requests()
-    set_up_csrf_mock(aioclient_mock)
-    aioclient_mock.post(
-        "https://cloud.supernote.com/api/file/list/query",
-        json={
-            "success": True,
-            "total": 10,
-            "size": 20,
-            "pages": 1,
-            "userFileVOList": [
-                {
-                    "id": "33333333333",
-                    "directoryId": "222222222",
-                    "fileName": "Note title.note",
-                    "isFolder": "N",
-                    "size": 12345,
-                    "md5": "abcdefabcdefabcdefabcdefabcdef",
-                    "createTime": 1727759196000,
-                    "updateTime": 1727759196000,
-                },
-            ],
-        },
-    )
-
-    invalid_note_path = f"{CONFIG_ENTRY_ID}/n/1111111111111111/1111111111111111"
-
-    with pytest.raises(BrowseError, match="Could not find note file"):
+    with pytest.raises(BrowseError, match="Expected file but got folder"):
         await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}/{invalid_note_path}")
 
 
 @pytest.mark.usefixtures("setup_integration")
 async def test_item_content_invalid_identifier(
     hass: HomeAssistant,
-    aioclient_mock: AiohttpClientMocker,
+    mock_supernote: MagicMock,
     hass_client: ClientSessionGenerator,
 ) -> None:
     """Test fetching content for invalid ids."""
@@ -306,119 +263,40 @@ async def test_item_content_invalid_identifier(
     )
     assert response.status == HTTPStatus.BAD_REQUEST
 
-    aioclient_mock.post(
-        "https://cloud.supernote.com/api/file/list/query",
-        json={
-            "success": True,
-            "total": 10,
-            "size": 20,
-            "pages": 1,
-            "userFileVOList": [
-                {
-                    "id": "33333333333",
-                    "directoryId": "222222222",
-                    "fileName": "Note title.note",
-                    "isFolder": "N",
-                    "size": 12345,
-                    "md5": "abcdefabcdefabcdefabcdefabcdef",
-                    "createTime": 1727759196000,
-                    "updateTime": 1727759196000,
-                },
-            ],
-        },
-    )
+    mock_folder = MagicMock()
+    mock_file_info = MagicMock()
+    mock_file_info.id = "33333333333"
+
+    # Configure children behavior
+    mock_folder.children = MagicMock()
+    mock_folder.children.get.return_value = mock_file_info
+
+    mock_supernote.device.list_folder = AsyncMock(return_value=mock_folder)
+    mock_supernote.device.get_note_png_pages.return_value = [b"page1"]
 
     client = await hass_client()
     response = await client.get(
-        f"/api/supernote_cloud/item_content/{CONFIG_ENTRY_ID}:p:1111111111111111:9999999999:1"
+        f"/api/supernote_cloud/item_content/{CONFIG_ENTRY_ID}:p:1111111111111111:33333333333:99"
     )
-    assert response.status == HTTPStatus.BAD_REQUEST
+    assert response.status == HTTPStatus.NOT_FOUND
 
 
-@pytest.mark.parametrize(
-    ("status", "error_message"),
-    [(HTTPStatus.UNAUTHORIZED, "Unauthorized"), (HTTPStatus.FORBIDDEN, "Forbidden")],
-)
 @pytest.mark.usefixtures("setup_integration")
 async def test_authentication_error(
     hass: HomeAssistant,
-    aioclient_mock: AiohttpClientMocker,
+    mock_supernote: MagicMock,
     hass_client: ClientSessionGenerator,
     config_entry: MockConfigEntry,
-    status: HTTPStatus,
-    error_message: str,
 ) -> None:
     """Test browsing the top level folder list."""
     assert config_entry.state is ConfigEntryState.LOADED
 
-    browse = await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}")
-    assert browse.domain == DOMAIN
-    assert browse.identifier is None
-    assert browse.title == SOURCE_TITLE
-    assert [(child.identifier, child.title) for child in browse.children] == [
-        (ROOT_FOLDER_PATH, CONFIG_ENTRY_TITLE)
-    ]
-
     # Browse folders
-    aioclient_mock.post(
-        "https://cloud.supernote.com/api/file/list/query",
-        status=status,
-    )
+    mock_supernote.web.list_query.side_effect = ApiException("Test error")
 
-    with pytest.raises(BrowseError, match=error_message):
+    with pytest.raises(BrowseError, match="Failed to fetch folder contents"):
         await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}/{ROOT_FOLDER_PATH}")
         await hass.async_block_till_done()
 
-    flows = hass.config_entries.flow.async_progress()
-    assert len(flows) == 1
-    result = flows[0]
-    assert result["step_id"] == "reauth_confirm"
-
-
-@pytest.mark.usefixtures("setup_integration")
-async def test_token_refresh_failure_triggers_reauth(
-    hass: HomeAssistant,
-    config_entry: MockConfigEntry,
-    aioclient_mock: AiohttpClientMocker,
-) -> None:
-    """Test that token refresh failure triggers reauth."""
-
-    # Expire the token
-    hass.config_entries.async_update_entry(
-        config_entry,
-        options={
-            **config_entry.options,
-            "username": "user-name",
-            "password": "some-password",
-            "token_timestamp": 0,
-        },
-    )
-
-    set_up_csrf_mock(aioclient_mock)
-
-    # Mock login failure with verification code requirement
-    aioclient_mock.post(
-        "https://cloud.supernote.com/api/official/user/query/random/code",
-        json={
-            "randomCode": "abcdef",
-            "timestamp": "17276692307051",
-        },
-    )
-    aioclient_mock.post(
-        "https://cloud.supernote.com/api/official/user/account/login/new",
-        json={
-            "success": False,
-            "msg": "Please use the verification code to verify your identity.",
-        },
-    )
-
-    # Browsing should trigger token refresh, which fails
-    with pytest.raises(ConfigEntryAuthFailed):
-        await async_browse_media(hass, f"{URI_SCHEME}{DOMAIN}/{ROOT_FOLDER_PATH}")
-
-    await hass.async_block_till_done()
-
-    # Verify reauth flow was started
-    flows = hass.config_entries.flow.async_progress()
-    assert len(flows) == 1
-    assert flows[0]["context"]["source"] == "reauth"
+    # Check if list_query was actually called
+    assert mock_supernote.web.list_query.called

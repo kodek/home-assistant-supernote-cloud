@@ -7,7 +7,9 @@ from enum import StrEnum
 import logging
 from typing import Self, cast
 
-from supernote.cloud.exceptions import ApiException
+from supernote.client.api import Supernote
+from supernote.client.exceptions import ApiException
+from supernote.models.base import BooleanEnum
 from aiohttp.web import Response, Request, StreamResponse
 
 from homeassistant.components.http.view import HomeAssistantView
@@ -23,7 +25,6 @@ from homeassistant.core import HomeAssistant, callback
 
 from . import SupernoteCloudConfigEntry
 from .const import DOMAIN
-from .store.model import FileInfo, FolderInfo
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -185,11 +186,11 @@ class ItemContentView(HomeAssistantView):
             msg = f"Could not find config entry for identifier: {identifier.config_entry_id}"
             _LOGGER.error(msg)
             return Response(status=400, text=msg)
-        store = entry.runtime_data
+        sn: Supernote = entry.runtime_data
 
         try:
-            folder_contents = await store.get_folder_contents(
-                identifier.parent_folder_id
+            folder_contents = await sn.device.list_folder(
+                folder_id=identifier.parent_folder_id
             )
         except ApiException as err:
             _LOGGER.error("Failed to fetch folder contents: %s", err)
@@ -204,8 +205,16 @@ class ItemContentView(HomeAssistantView):
             _LOGGER.error(msg)
             return Response(status=400, text=msg)
 
-        content = await store.get_note_png(file_info, identifier.page_id)
-        return Response(body=content, content_type="image/png")
+        try:
+            # get_note_png_pages returns list[bytes]
+            pages = await sn.device.get_note_png_pages(file_info.id)
+            if identifier.page_id is None or identifier.page_id >= len(pages):
+                return Response(status=404, text="Page not found")
+            content = pages[identifier.page_id]
+            return Response(body=content, content_type="image/png")
+        except ApiException as err:
+            _LOGGER.error("Failed to fetch note content: %s", err)
+            return Response(status=500, text=str(err))
 
 
 async def async_get_media_source(hass: HomeAssistant) -> MediaSource:
@@ -274,76 +283,65 @@ class SupernoteCloudMediaSource(MediaSource):
 
         entry = self._async_config_entry(identifier.config_entry_id)
         entry_unique_id = cast(str, entry.unique_id)
-        store = entry.runtime_data
-
-        if identifier.id_type is SupernoteIdentifierType.FOLDER:
-            if not len(identifier.media_id_path):
-                raise BrowseError(
-                    f"Invalid identifier did not contain a media id: {identifier}"
-                )
-
-            # Create the node for the parent folder
-            if identifier.is_root:
-                source = _build_account(entry, identifier)
+        sn: Supernote = entry.runtime_data
+        if identifier.id_type == SupernoteIdentifierType.FOLDER:
+            if identifier.parent_folder_id is None:
+                # This is the root folder for the account
+                source = _build_folder(entry_unique_id, [0], entry.title)
             else:
-                if identifier.parent_folder_id is None:
-                    raise BrowseError(
-                        f"Invalid identifier did not contain a parent folder id: {identifier}"
-                    )
                 try:
-                    parent_folder_contents = await store.get_folder_contents(
-                        identifier.parent_folder_id
+                    # Identifier media_id is the folder we are looking at
+                    path_info = await sn.web.path_query(identifier.media_id)
+                    name = (
+                        path_info.path.split("/")[-1]
+                        if path_info.path
+                        else f"Folder {identifier.media_id}"
                     )
-                except ApiException as err:
-                    raise BrowseError(
-                        f"Failed to fetch parent folder contents: {err}"
-                    ) from err
-                _LOGGER.debug("Contents: %s", parent_folder_contents)
-                if (
-                    folder_info := parent_folder_contents.children.get(
-                        identifier.media_id
-                    )
-                ) is None:
-                    raise BrowseError(
-                        f"Could not find folder {identifier.media_id} in parent {identifier.parent_folder_id}"
-                    )
-                if not isinstance(folder_info, FolderInfo):
-                    raise BrowseError(f"Expected folder but got {folder_info}")
+                except ApiException:
+                    name = f"Folder {identifier.media_id}"
+
                 source = _build_folder(
                     entry_unique_id,
-                    identifier.parent_folder_id,
-                    folder_info.folder_id,
-                    folder_info.name,
+                    [identifier.parent_folder_id, identifier.media_id],
+                    name,
                 )
 
             # Add the children of the folder
             try:
-                folder_contents = await store.get_folder_contents(identifier.media_id)
+                folder_contents_vo = await sn.web.list_query(
+                    directory_id=identifier.media_id, page_size=100
+                )
             except ApiException as err:
                 raise BrowseError(f"Failed to fetch folder contents: {err}") from err
+
             children = []
-            for child in folder_contents.children.values():
-                _LOGGER.debug("Child: %s", child)
-                if isinstance(child, FileInfo):
+            for item in folder_contents_vo.user_file_vo_list:
+                _LOGGER.debug("Item: %s", item)
+                try:
+                    item_id = int(item.id)
+                except ValueError:
+                    _LOGGER.warning("Skipping item with non-integer ID: %s", item.id)
+                    continue
+
+                if item.is_folder == BooleanEnum.YES:
+                    children.append(
+                        _build_folder(
+                            entry_unique_id,
+                            [identifier.media_id, item_id],
+                            item.file_name,
+                        )
+                    )
+                elif item.file_name.lower().endswith(".note"):
                     children.append(
                         _build_file(
                             entry_unique_id,
                             identifier.media_id,
-                            child.file_id,
-                            child.name,
+                            item_id,
+                            item.file_name,
                         )
                     )
-                elif isinstance(child, FolderInfo):
-                    children.append(
-                        _build_folder(
-                            entry_unique_id,
-                            identifier.media_id,
-                            child.folder_id,
-                            child.name,
-                        )
-                    )
-                else:
-                    raise ValueError(f"Unexpected child type: {child}")
+                # Ignore other file types
+
             source.children = children
             return source
 
@@ -352,29 +350,37 @@ class SupernoteCloudMediaSource(MediaSource):
 
         # We are browsing a note file
         try:
-            parent_folder_contents = await store.get_folder_contents(
-                identifier.parent_folder_id
+            parent_folder_contents_vo = await sn.web.list_query(
+                directory_id=identifier.parent_folder_id, page_size=100
             )
         except ApiException as err:
             raise BrowseError(f"Failed to fetch parent folder contents: {err}") from err
-        if (
-            not identifier.note_file_id
-            or (
-                file_info := parent_folder_contents.children.get(
-                    identifier.note_file_id
-                )
-            )
-            is None
-        ):
+
+        # Find the file in the listing
+        file_info = None
+        for item in parent_folder_contents_vo.user_file_vo_list:
+            if str(item.id) == str(identifier.note_file_id):
+                file_info = item
+                break
+
+        if file_info is None:
             raise BrowseError(
                 f"Could not find note file {identifier.note_file_id} in parent {identifier.parent_folder_id}"
             )
-        if not isinstance(file_info, FileInfo):
-            raise BrowseError(
-                f"Expected file but got {file_info} or no page_id {identifier}"
-            )
 
-        page_names = await store.get_note_page_names(file_info)
+        if file_info.is_folder == BooleanEnum.YES:
+            raise BrowseError(f"Expected file but got folder {file_info}")
+
+        # Convert note to PNG to get page count
+        # We can use that for count.
+        try:
+            conversion_res = await sn.device.note_to_png(int(file_info.id))
+            # We assume pages are just numbered for now or check if API gives names?
+            # PngPageVO has url.
+            page_count = len(conversion_res.png_page_vo_list)
+            page_names = [f"Page {i + 1}" for i in range(page_count)]
+        except ApiException as err:
+            raise BrowseError(f"Failed to get note info: {err}") from err
         _LOGGER.debug("Note has %s pages", len(page_names))
 
         if identifier.id_type is SupernoteIdentifierType.NOTE_PAGE:
@@ -383,12 +389,21 @@ class SupernoteCloudMediaSource(MediaSource):
                     f"Invalid page id {identifier.page_id} for note {identifier}"
                 )
             page_name = page_names[identifier.page_id]
+
+            # Ensure we have valid ints for note_page
+            p_folder_id = (
+                identifier.parent_folder_id or 0
+            )  # Should not happen based on checks
+            p_note_id = (
+                identifier.note_file_id or 0
+            )  # Should not happen based on checks
+
             return _build_page(
                 SupernoteIdentifier.note_page(
                     identifier.config_entry_id,
                     [
-                        identifier.parent_folder_id,
-                        identifier.note_file_id,
+                        p_folder_id,
+                        p_note_id,
                         identifier.page_id,
                     ],
                 ).as_string(),
@@ -398,8 +413,8 @@ class SupernoteCloudMediaSource(MediaSource):
         source = _build_file(
             entry_unique_id,
             identifier.parent_folder_id,
-            file_info.file_id,
-            file_info.name,
+            int(file_info.id),
+            file_info.file_name,
         )
         source.children = [
             _build_page(
@@ -452,14 +467,14 @@ def _build_account(
 
 
 def _build_folder(
-    config_entry_id: str, parent_folder_id: int, folder_id: int, name: str
+    config_entry_id: str, media_ids: list[int], name: str
 ) -> BrowseMediaSource:
     """Build a media item node for a folder."""
     return BrowseMediaSource(
         domain=DOMAIN,
         identifier=SupernoteIdentifier.folder(
             config_entry_id,
-            [parent_folder_id, folder_id],
+            media_ids,
         ).as_string(),
         media_class=MediaClass.APP,
         media_content_type=MediaType.APP,

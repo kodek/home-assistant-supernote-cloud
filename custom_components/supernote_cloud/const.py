@@ -6,4 +6,7 @@ DOMAIN = "supernote_cloud"
 
 CONF_API_USERNAME = "api_username"
 CONF_TOKEN_TIMESTAMP = "token_timestamp"
-TOKEN_LIFEIME = datetime.timedelta(days=5)
+CONF_HOST = "host"
+
+DEFAULT_HOST = "https://cloud.supernote.com"
+TOKEN_LIFETIME = datetime.timedelta(days=5)

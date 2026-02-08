@@ -6,10 +6,10 @@ from typing import cast
 
 import aiohttp
 
-from supernote.cloud.auth import AbstractAuth
-from supernote.cloud.login_client import LoginClient
-from supernote.cloud.client import Client
-from supernote.cloud.exceptions import SupernoteException
+from supernote.client.auth import AbstractAuth
+from supernote.client.login_client import LoginClient
+from supernote.client.client import Client
+from supernote.client.exceptions import SupernoteException
 
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
@@ -17,7 +17,7 @@ from homeassistant.const import CONF_ACCESS_TOKEN, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.exceptions import HomeAssistantError, ConfigEntryAuthFailed
 from homeassistant.util import dt as dt_util
 
-from .const import CONF_TOKEN_TIMESTAMP, TOKEN_LIFEIME
+from .const import CONF_TOKEN_TIMESTAMP, TOKEN_LIFETIME, CONF_HOST, DEFAULT_HOST
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,8 +34,9 @@ class ConfigEntryAuth(AbstractAuth):
         """Initialize the auth."""
         self._hass = hass
         self._entry = entry
-        self._login_client = LoginClient(Client(session))
         self._session = session
+        host = entry.options.get(CONF_HOST, DEFAULT_HOST)
+        self._login_client = LoginClient(Client(session, host=host))
 
     async def async_get_access_token(self) -> str:
         """Return a valid access token."""
@@ -50,7 +51,7 @@ class ConfigEntryAuth(AbstractAuth):
         )
         now = dt_util.now()
         age = now - token_ts
-        return age > TOKEN_LIFEIME
+        return age > TOKEN_LIFETIME
 
     async def _refresh_access_token(self) -> None:
         """Refresh access token."""

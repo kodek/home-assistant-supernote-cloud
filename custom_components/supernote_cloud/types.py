@@ -1,6 +1,6 @@
 """Supernote Cloud types."""
 
 from homeassistant.config_entries import ConfigEntry
-from .store.store import LocalStore
+from supernote.client.api import Supernote
 
-type SupernoteCloudConfigEntry = ConfigEntry[LocalStore]
+type SupernoteCloudConfigEntry = ConfigEntry[Supernote]
