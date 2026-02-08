@@ -109,6 +109,9 @@ class SupernoteCloudConfigFlowHandler(ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=vol.Schema(
                 {
+                    vol.Required(CONF_HOST): selector.TextSelector(
+                        selector.TextSelectorConfig(),
+                    ),
                     vol.Required(CONF_USERNAME): selector.TextSelector(
                         selector.TextSelectorConfig(),
                     ),
@@ -116,9 +119,6 @@ class SupernoteCloudConfigFlowHandler(ConfigFlow, domain=DOMAIN):
                         selector.TextSelectorConfig(
                             type=selector.TextSelectorType.PASSWORD
                         ),
-                    ),
-                    vol.Required(CONF_HOST): selector.TextSelector(
-                        selector.TextSelectorConfig(),
                     ),
                 }
             ),
