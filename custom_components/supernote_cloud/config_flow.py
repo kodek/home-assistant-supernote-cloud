@@ -91,6 +91,7 @@ class SupernoteCloudConfigFlowHandler(ConfigFlow, domain=DOMAIN):
                 sn = await Supernote.login(
                     self._username, self._password, host=self._host, session=websession
                 )
+                assert sn.token is not None
                 access_token = sn.token
                 return await self._async_create_supernote_entry(access_token)
             except SmsVerificationRequired as err:
@@ -136,6 +137,8 @@ class SupernoteCloudConfigFlowHandler(ConfigFlow, domain=DOMAIN):
             login_client = self._async_get_login_client()
 
             try:
+                assert self._username is not None
+                assert self._sms_timestamp is not None
                 access_token = await login_client.sms_login(
                     self._username,
                     code,
@@ -177,6 +180,7 @@ class SupernoteCloudConfigFlowHandler(ConfigFlow, domain=DOMAIN):
             # If we can't even get capacity, maybe token is bad or host is wrong.
             raise
 
+        assert self._username is not None
         unique_id = self._username
         await self.async_set_unique_id(unique_id)
 
@@ -195,6 +199,7 @@ class SupernoteCloudConfigFlowHandler(ConfigFlow, domain=DOMAIN):
             reauth_entry = self.hass.config_entries.async_get_entry(
                 self.context["entry_id"]
             )
+            assert reauth_entry is not None
             return self.async_update_reload_and_abort(
                 reauth_entry,
                 title=self._username,

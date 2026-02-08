@@ -333,29 +333,31 @@ class SupernoteCloudMediaSource(MediaSource):
                 raise BrowseError(f"Failed to fetch folder contents: {err}") from err
 
             children = []
-            for item in folder_contents_vo.user_file_vo_list:
-                _LOGGER.debug("Item: %s", item)
+            for child_item in folder_contents_vo.user_file_vo_list:
+                _LOGGER.debug("Item: %s", child_item)
                 try:
-                    item_id = int(item.id)
+                    item_id = int(child_item.id)
                 except ValueError:
-                    _LOGGER.warning("Skipping item with non-integer ID: %s", item.id)
+                    _LOGGER.warning(
+                        "Skipping item with non-integer ID: %s", child_item.id
+                    )
                     continue
 
-                if item.is_folder == BooleanEnum.YES:
+                if child_item.is_folder == BooleanEnum.YES:
                     children.append(
                         _build_folder(
                             entry_unique_id,
                             [identifier.media_id, item_id],
-                            item.file_name,
+                            child_item.file_name,
                         )
                     )
-                elif item.file_name.lower().endswith(".note"):
+                elif child_item.file_name.lower().endswith(".note"):
                     children.append(
                         _build_file(
                             entry_unique_id,
                             identifier.media_id,
                             item_id,
-                            item.file_name,
+                            child_item.file_name,
                         )
                     )
                 # Ignore other file types
@@ -376,9 +378,9 @@ class SupernoteCloudMediaSource(MediaSource):
 
         # Find the file in the listing
         file_info = None
-        for item in parent_folder_contents_vo.user_file_vo_list:
-            if str(item.id) == str(identifier.note_file_id):
-                file_info = item
+        for child_item in parent_folder_contents_vo.user_file_vo_list:
+            if str(child_item.id) == str(identifier.note_file_id):
+                file_info = child_item
                 break
 
         if file_info is None:
