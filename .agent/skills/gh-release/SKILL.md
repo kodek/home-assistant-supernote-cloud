@@ -9,6 +9,16 @@ description: Automates version bumping in manifest.json and creating GitHub rele
 
 This skill automates the process of creating a new release for a Home Assistant custom component. It finds the `manifest.json` file, updates the `version`, commits the change, and then creates a GitHub release using the `gh` CLI tool.
 
+## Semantic Versioning (SemVer)
+
+This project follows [Semantic Versioning](https://semver.org/) (SemVer) for releasing versions. SemVer uses a `MAJOR.MINOR.PATCH` format:
+
+- **MAJOR** version when you make incompatible API changes.
+- **MINOR** version when you add functionality in a backward compatible manner.
+- **PATCH** version when you make backward compatible bug fixes.
+
+Example: `1.0.0` -> `1.1.0` (new feature), `1.1.0` -> `1.1.1` (bug fix), `1.1.1` -> `2.0.0` (breaking change).
+
 ## Usage
 
 To use this skill, execute the `create-release.sh` script from the root of your project with the desired new version number as an argument.
