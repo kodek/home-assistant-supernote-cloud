@@ -172,7 +172,7 @@ class SupernoteLLMApi(API):
         """Initialize the LLM API."""
         self.hass = hass
         self.id = f"{DOMAIN}-{entry.entry_id}"
-        self.name = entry.title
+        self.name = f"Supernote Notebooks: {entry.title}"
         self._entry = entry
 
     async def async_get_api_instance(self, llm_context: LLMContext) -> APIInstance:
