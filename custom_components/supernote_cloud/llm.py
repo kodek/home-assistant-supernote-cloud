@@ -4,7 +4,7 @@ from typing import cast
 import logging
 
 import voluptuous as vol
-
+import slugify
 from supernote.client.extended import ExtendedClient
 
 from homeassistant.core import HomeAssistant
@@ -172,7 +172,7 @@ class SupernoteLLMApi(API):
         """Initialize the LLM API."""
         self.hass = hass
         self.id = f"{DOMAIN}-{entry.entry_id}"
-        self.name = f"Supernote Notebooks: {entry.title}"
+        self.name = slugify.slugify(f"Supernote: {entry.title}")[:16]
         self._entry = entry
 
     async def async_get_api_instance(self, llm_context: LLMContext) -> APIInstance:
