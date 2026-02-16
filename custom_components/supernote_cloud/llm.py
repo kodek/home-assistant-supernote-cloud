@@ -90,7 +90,7 @@ class SearchTool(Tool):
                 date_before=args.get("date_before"),
             )
         except Exception as err:
-            raise HomeAssistantError(f"Error searching Supernote: {err}") from err
+            return {"error": f"Error searching Supernote: {err}"}
 
         return cast(
             JsonObjectType,
@@ -151,9 +151,7 @@ class TranscriptTool(Tool):
                 end_index=args.get("end_index"),
             )
         except Exception as err:
-            raise HomeAssistantError(
-                f"Error fetching Supernote transcript: {err}"
-            ) from err
+            return {"error": f"Error fetching Supernote transcript: {err}"}
 
         return cast(
             JsonObjectType,

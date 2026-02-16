@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock
 
 import pytest
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import llm
 
 from custom_components.supernote_cloud.llm import (
@@ -153,8 +152,9 @@ async def test_search_tool_call_error(
         tool_name="search_supernote", tool_args={"query": "test query"}
     )
 
-    with pytest.raises(HomeAssistantError, match="Error searching Supernote"):
-        await tool.async_call(hass, tool_input, AsyncMock())
+    result = await tool.async_call(hass, tool_input, AsyncMock())
+
+    assert result == {"error": "Error searching Supernote: API Error"}
 
 
 @pytest.mark.usefixtures("mock_supernote")
@@ -175,5 +175,6 @@ async def test_transcript_tool_call_error(
         tool_name="get_supernote_transcript", tool_args={"file_id": 12345}
     )
 
-    with pytest.raises(HomeAssistantError, match="Error fetching Supernote transcript"):
-        await tool.async_call(hass, tool_input, AsyncMock())
+    result = await tool.async_call(hass, tool_input, AsyncMock())
+
+    assert result == {"error": "Error fetching Supernote transcript: API Error"}
