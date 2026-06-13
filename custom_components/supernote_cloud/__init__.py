@@ -23,7 +23,7 @@ __all__ = ["DOMAIN"]
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: tuple[Platform] = ()  # type: ignore[assignment]
+PLATFORMS: list[Platform] = []
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
