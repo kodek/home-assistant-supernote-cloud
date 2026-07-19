@@ -17,7 +17,7 @@ This integration registers custom tools with Home Assistant's LLM engine, enabli
 
 - **Semantic Search (`search_supernote`)**: Allows LLMs to search for concepts across your handwritten notebook library using vector similarity search.
 - **Notebook Transcripts (`get_supernote_transcript`)**: Exposes the text transcript of any notebook or journal to the model.
-- **Companion Integrations**: Pairs perfectly with **[Journal Assistant](https://github.com/allenporter/home-assistant-journal-assistant)** and **[Supernote LLM](https://github.com/allenporter/supernote-llm/)** to convert handwritten bullet journals into structured calendar events and PKM insights.
+- **LLM Agent Compatibility**: Pairs with Home Assistant LLM integrations (such as Google Gemini, Anthropic Claude, OpenAI, etc.) to query, summarize, or search your handwritten notes using natural language.
 
 ### 🖼️ Dynamic Notebook Rendering (Media Source)
 
