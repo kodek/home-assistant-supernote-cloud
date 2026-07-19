@@ -40,8 +40,8 @@ Keep track of your cloud account's storage capacity. The integration registers f
 This component supports two sync options:
 
 - **Official Cloud**: By default, it connects to the official, original Supernote Cloud service (using your standard Supernote credentials).
-- **Self-Hosted Server**: If you want complete data privacy and local ownership, it integrates seamlessly with **[allenporter/supernote](https://github.com/allenporter/supernote)**, a lightweight, SQLite-backed private cloud server.
-  - **Privacy-First**: No data is leaked to external corporate clouds. Your notes sync directly to a database in your home lab or NAS.
+- **Self-Hosted Server**: If you prefer to host your own sync infrastructure, it integrates seamlessly with **[allenporter/supernote](https://github.com/allenporter/supernote)**, a lightweight, SQLite-backed private cloud server.
+  - **Local Ownership**: Sync your notes directly to a local database running in your home lab, NAS, or private server.
   - **Highly Efficient**: Consumes less than ~200MB of memory at idle, making it perfect for running on a low-power home server.
 
 ---
