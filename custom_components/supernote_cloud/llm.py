@@ -79,7 +79,7 @@ class SearchTool(Tool):
         args = tool_input.tool_args
 
         # Instantiate ExtendedClient on the fly
-        sn = self._entry.runtime_data
+        sn = self._entry.runtime_data.client
         extended = ExtendedClient(sn.client)
 
         try:
@@ -145,7 +145,7 @@ class TranscriptTool(Tool):
         args = tool_input.tool_args
 
         # Instantiate ExtendedClient on the fly
-        sn = self._entry.runtime_data
+        sn = self._entry.runtime_data.client
         extended = ExtendedClient(sn.client)
 
         try:

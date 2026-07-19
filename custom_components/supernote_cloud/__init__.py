@@ -11,16 +11,17 @@ from homeassistant.helpers.typing import ConfigType
 
 from .const import DOMAIN
 from .api import async_get_supernote_client
-from .types import SupernoteCloudConfigEntry
+from .types import SupernoteCloudConfigEntry, SupernoteCloudData
 from .media_source import async_register_http_views
 
+from .coordinator import SupernoteStorageCoordinator
 from .llm import async_register_llm_apis
 
 __all__ = ["DOMAIN"]
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = []
+PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -34,7 +35,11 @@ async def async_setup_entry(
 ) -> bool:
     """Set up a config entry."""
     sn = await async_get_supernote_client(hass, entry)
-    entry.runtime_data = sn
+
+    coordinator = SupernoteStorageCoordinator(hass, entry, sn)
+    await coordinator.async_config_entry_first_refresh()
+
+    entry.runtime_data = SupernoteCloudData(client=sn, coordinator=coordinator)
 
     await hass.config_entries.async_forward_entry_setups(
         entry,

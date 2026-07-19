@@ -10,6 +10,10 @@ from custom_components.supernote_cloud.llm import (
     SearchTool,
     TranscriptTool,
 )
+from custom_components.supernote_cloud.types import SupernoteCloudData
+from custom_components.supernote_cloud.const import DOMAIN
+from supernote.client.exceptions import UnauthorizedException
+from unittest.mock import MagicMock
 
 from supernote.models.extended import (
     WebSearchResponseVO,
@@ -53,8 +57,9 @@ async def test_search_tool_call_success(
     mock_supernote: AsyncMock,
 ):
     """Test calling the search tool successfully."""
-    # Ensure runtime_data is mock_supernote
-    config_entry.runtime_data = mock_supernote
+    config_entry.runtime_data = SupernoteCloudData(
+        client=mock_supernote, coordinator=MagicMock()
+    )
 
     # Setup mock response
     mock_result = SearchResultVO(
@@ -106,8 +111,9 @@ async def test_transcript_tool_call_success(
     mock_supernote: AsyncMock,
 ):
     """Test calling the transcript tool successfully."""
-    # Ensure runtime_data is mock_supernote
-    config_entry.runtime_data = mock_supernote
+    config_entry.runtime_data = SupernoteCloudData(
+        client=mock_supernote, coordinator=MagicMock()
+    )
 
     # Setup mock response
     mock_response = WebTranscriptResponseVO(transcript="This is the full transcript.")
@@ -141,8 +147,9 @@ async def test_search_tool_call_error(
     mock_supernote: AsyncMock,
 ):
     """Test calling the search tool with an error."""
-    # Ensure runtime_data is mock_supernote
-    config_entry.runtime_data = mock_supernote
+    config_entry.runtime_data = SupernoteCloudData(
+        client=mock_supernote, coordinator=MagicMock()
+    )
 
     mock_supernote.client.post_json = AsyncMock(side_effect=Exception("API Error"))
 
@@ -164,8 +171,9 @@ async def test_transcript_tool_call_error(
     mock_supernote: AsyncMock,
 ):
     """Test calling the transcript tool with an error."""
-    # Ensure runtime_data is mock_supernote
-    config_entry.runtime_data = mock_supernote
+    config_entry.runtime_data = SupernoteCloudData(
+        client=mock_supernote, coordinator=MagicMock()
+    )
 
     mock_supernote.client.post_json = AsyncMock(side_effect=Exception("API Error"))
 
@@ -187,11 +195,10 @@ async def test_search_tool_auth_error(
     mock_supernote: AsyncMock,
 ):
     """Test calling the search tool with an authentication error."""
-    from supernote.client.exceptions import UnauthorizedException
-    from custom_components.supernote_cloud.const import DOMAIN
 
-    # Ensure runtime_data is mock_supernote
-    config_entry.runtime_data = mock_supernote
+    config_entry.runtime_data = SupernoteCloudData(
+        client=mock_supernote, coordinator=MagicMock()
+    )
 
     mock_supernote.client.post_json = AsyncMock(
         side_effect=UnauthorizedException("Unauthorized")
@@ -222,11 +229,10 @@ async def test_transcript_tool_auth_error(
     mock_supernote: AsyncMock,
 ):
     """Test calling the transcript tool with an authentication error."""
-    from supernote.client.exceptions import UnauthorizedException
-    from custom_components.supernote_cloud.const import DOMAIN
 
-    # Ensure runtime_data is mock_supernote
-    config_entry.runtime_data = mock_supernote
+    config_entry.runtime_data = SupernoteCloudData(
+        client=mock_supernote, coordinator=MagicMock()
+    )
 
     mock_supernote.client.post_json = AsyncMock(
         side_effect=UnauthorizedException("Unauthorized")
