@@ -280,7 +280,7 @@ class SupernoteCloudMediaSource(MediaSource):
                     identifier = SupernoteIdentifier.of(item.identifier)
                     entry = self._async_config_entry(identifier.config_entry_id)
                     entry.async_start_reauth(self.hass)
-                except Exception:
+                except (ValueError, BrowseError):
                     pass
             raise BrowseError("Authentication failed") from err
 
