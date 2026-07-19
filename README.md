@@ -45,7 +45,7 @@ This component supports the following sync infrastructure options:
   - **Local Ownership**: Sync your notes directly to a local database running in your home lab, NAS, or private server.
   - **AI Integration**: Unlocks semantic search and note transcription features for LLM tools.
   - **Highly Efficient**: Consumes less than ~200MB of memory at idle.
-- **Generic Private Cloud**: Works with standard implementations of the Supernote Private Cloud protocol (such as the community reverse-engineered [OpenAPI Specification](https://github.com/allenporter/supernote/tree/main/api-spec) documented in the self-hosted project).
+- **Generic Private Cloud**: Works with standard implementations of the Supernote Private Cloud protocol (such as the [OpenAPI Specification](https://github.com/allenporter/supernote/tree/main/api-spec) documented in the self-hosted project).
 
 ---
 
