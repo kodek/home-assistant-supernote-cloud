@@ -38,9 +38,9 @@ class ConfigEntryAuth(AbstractAuth):
         host = entry.options.get(CONF_HOST, DEFAULT_HOST)
         self._login_client = LoginClient(Client(session, host=host))
 
-    async def async_get_access_token(self, force_refresh: bool = False) -> str:
+    async def async_get_access_token(self) -> str:
         """Return a valid access token."""
-        if force_refresh or self.is_expired():
+        if self.is_expired():
             await self._refresh_access_token()
         return cast(str, self._entry.options[CONF_ACCESS_TOKEN])
 
