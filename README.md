@@ -3,7 +3,7 @@
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![test_suite](https://github.com/allenporter/home-assistant-supernote-cloud/actions/workflows/test.yaml/badge.svg)](https://github.com/allenporter/home-assistant-supernote-cloud/actions)
 
-Bring your Ratta Supernote e-ink tablet into your smart home ecosystem. This integration connects Home Assistant to your **[Self-Hosted Supernote Private Cloud Server](https://github.com/allenporter/supernote)**, allowing you to own your notes, monitor your device cloud capacity, view your notebook pages dynamically, and interact with your handwritten notes using Large Language Models (LLMs) and Home Assistant Assist.
+Bring your Ratta Supernote e-ink tablet into your smart home ecosystem. This integration connects Home Assistant to your **Supernote Cloud Account**, supporting both the official, original Supernote Cloud service and your own self-hosted **[Supernote Private Cloud Server](https://github.com/allenporter/supernote)**. It allows you to own or access your notes, monitor device cloud capacity, view notebook pages dynamically, and interact with your handwritten notes using Large Language Models (LLMs) and Home Assistant Assist.
 
 ---
 
@@ -26,7 +26,7 @@ Exposes your notebook library via Home Assistant's native **Media Browser**.
 
 ### 📊 3. Storage Capacity Sensors
 
-Keep track of your cloud server's storage capacity. The integration registers four sensors polled automatically every 30 minutes:
+Keep track of your cloud account's storage capacity. The integration registers four sensors polled automatically every 30 minutes:
 
 - **Storage Used** (in GB)
 - **Storage Total** (in GB)
@@ -35,12 +35,14 @@ Keep track of your cloud server's storage capacity. The integration registers fo
 
 ---
 
-## 🔒 Own Your Data: Self-Hosted Private Cloud
+## 🔒 Self-Hosted Private Cloud vs. Official Cloud
 
-This component is designed to work with **[allenporter/supernote](https://github.com/allenporter/supernote)**, a lightweight, self-hosted implementation of the Supernote Private Cloud protocol.
+This component supports two sync options:
 
-- **Privacy-First**: No data is leaked to external corporate clouds. Your notes sync directly to a SQLite database running in your home lab or NAS.
-- **Highly Efficient**: Consumes less than ~200MB of memory at idle, making it perfect for running on a low-power home server.
+1. **Official Cloud**: By default, it connects to the official, original Supernote Cloud service (using your standard Supernote credentials).
+2. **Self-Hosted Server**: If you want complete data privacy and local ownership, it integrates seamlessly with **[allenporter/supernote](https://github.com/allenporter/supernote)**, a lightweight, SQLite-backed private cloud server.
+   - **Privacy-First**: No data is leaked to external corporate clouds. Your notes sync directly to a database in your home lab or NAS.
+   - **Highly Efficient**: Consumes less than ~200MB of memory at idle, making it perfect for running on a low-power home server.
 
 ---
 
@@ -58,8 +60,9 @@ This component is designed to work with **[allenporter/supernote](https://github
 
 1. Go to **Settings** -> **Devices & Services** -> **Add Integration**.
 2. Search for **Supernote Cloud**.
-3. Enter your **Supernote Private Cloud URL** (the URL of your self-hosted server), your username/phone number, and your password.
-4. Follow the setup flow (including entering the SMS verification code if applicable).
+3. Enter your credentials (username/phone number and password).
+4. By default, the **Supernote Private Cloud URL** is set to the official cloud URL. If you are using a self-hosted server, change this to your server's local URL.
+5. Follow the setup flow (including entering the SMS verification code if applicable).
 
 ---
 
