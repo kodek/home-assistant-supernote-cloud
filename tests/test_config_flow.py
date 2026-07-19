@@ -143,6 +143,15 @@ async def test_reauth_flow(
     assert len(entries) == 1
     old_timestamp = config_entry.options[CONF_TOKEN_TIMESTAMP]
 
+    hass.config_entries.async_update_entry(
+        config_entry,
+        options={
+            **config_entry.options,
+            CONF_USERNAME: "reauth-user-name",
+            CONF_HOST: "https://custom-host.local",
+        },
+    )
+
     config_entry.async_start_reauth(hass)
     await hass.async_block_till_done()
 
@@ -158,6 +167,12 @@ async def test_reauth_flow(
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     assert result.get("type") is FlowResultType.FORM
     assert result.get("step_id") == "user"
+
+    schema = result["data_schema"].schema
+    host_key = next(k for k in schema if k == CONF_HOST)
+    username_key = next(k for k in schema if k == CONF_USERNAME)
+    assert host_key.default() == "https://custom-host.local"
+    assert username_key.default() == "reauth-user-name"
 
     with patch(
         f"custom_components.{DOMAIN}.async_setup_entry", return_value=True

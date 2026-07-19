@@ -6,6 +6,7 @@ import logging
 import voluptuous as vol
 import slugify
 from supernote.client.extended import ExtendedClient
+from supernote.client.exceptions import UnauthorizedException
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
@@ -89,6 +90,9 @@ class SearchTool(Tool):
                 date_after=args.get("date_after"),
                 date_before=args.get("date_before"),
             )
+        except UnauthorizedException as err:
+            self._entry.async_start_reauth(hass)
+            return {"error": f"Supernote authentication failed: {err}"}
         except Exception as err:
             return {"error": f"Error searching Supernote: {err}"}
 
@@ -150,6 +154,9 @@ class TranscriptTool(Tool):
                 start_index=args.get("start_index"),
                 end_index=args.get("end_index"),
             )
+        except UnauthorizedException as err:
+            self._entry.async_start_reauth(hass)
+            return {"error": f"Supernote authentication failed: {err}"}
         except Exception as err:
             return {"error": f"Error fetching Supernote transcript: {err}"}
 
