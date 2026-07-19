@@ -178,3 +178,73 @@ async def test_transcript_tool_call_error(
     result = await tool.async_call(hass, tool_input, AsyncMock())
 
     assert result == {"error": "Error fetching Supernote transcript: API Error"}
+
+
+@pytest.mark.usefixtures("mock_supernote")
+async def test_search_tool_auth_error(
+    hass: HomeAssistant,
+    config_entry: MockConfigEntry,
+    mock_supernote: AsyncMock,
+):
+    """Test calling the search tool with an authentication error."""
+    from supernote.client.exceptions import UnauthorizedException
+    from custom_components.supernote_cloud.const import DOMAIN
+
+    # Ensure runtime_data is mock_supernote
+    config_entry.runtime_data = mock_supernote
+
+    mock_supernote.client.post_json = AsyncMock(
+        side_effect=UnauthorizedException("Unauthorized")
+    )
+
+    tool = SearchTool(config_entry)
+
+    tool_input = llm.ToolInput(
+        tool_name="search_supernote", tool_args={"query": "test query"}
+    )
+
+    result = await tool.async_call(hass, tool_input, AsyncMock())
+
+    assert result == {"error": "Supernote authentication failed: Unauthorized"}
+
+    # Verify that the reauth flow was started
+    await hass.async_block_till_done()
+    flows = hass.config_entries.flow.async_progress()
+    assert len(flows) == 1
+    assert flows[0]["handler"] == DOMAIN
+    assert flows[0]["context"]["source"] == "reauth"
+
+
+@pytest.mark.usefixtures("mock_supernote")
+async def test_transcript_tool_auth_error(
+    hass: HomeAssistant,
+    config_entry: MockConfigEntry,
+    mock_supernote: AsyncMock,
+):
+    """Test calling the transcript tool with an authentication error."""
+    from supernote.client.exceptions import UnauthorizedException
+    from custom_components.supernote_cloud.const import DOMAIN
+
+    # Ensure runtime_data is mock_supernote
+    config_entry.runtime_data = mock_supernote
+
+    mock_supernote.client.post_json = AsyncMock(
+        side_effect=UnauthorizedException("Unauthorized")
+    )
+
+    tool = TranscriptTool(config_entry)
+
+    tool_input = llm.ToolInput(
+        tool_name="get_supernote_transcript", tool_args={"file_id": 12345}
+    )
+
+    result = await tool.async_call(hass, tool_input, AsyncMock())
+
+    assert result == {"error": "Supernote authentication failed: Unauthorized"}
+
+    # Verify that the reauth flow was started
+    await hass.async_block_till_done()
+    flows = hass.config_entries.flow.async_progress()
+    assert len(flows) == 1
+    assert flows[0]["handler"] == DOMAIN
+    assert flows[0]["context"]["source"] == "reauth"
