@@ -109,9 +109,18 @@ def mock_supernote_fixture() -> Generator[AsyncMock, None, None]:
         mock_sn.web.path_query = AsyncMock()
         mock_sn.web.query_user = AsyncMock()
 
+        from supernote.models.file_device import CapacityLocalVO, AllocationVO
+
         mock_sn.device.note_to_png = AsyncMock()
         mock_sn.device.get_note_png_pages = AsyncMock()
-        mock_sn.device.get_capacity = AsyncMock()
+        mock_sn.device.get_capacity = AsyncMock(
+            return_value=CapacityLocalVO(
+                used=10 * 1024 * 1024 * 1024,
+                allocation_vo=AllocationVO(
+                    tag="personal", allocated=50 * 1024 * 1024 * 1024
+                ),
+            )
+        )
         mock_sn.device.list_folder = AsyncMock()
         mock_sn.client.get_content = AsyncMock()
         mock_sn.client.request = AsyncMock()

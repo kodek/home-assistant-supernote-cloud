@@ -186,7 +186,7 @@ class ItemContentView(HomeAssistantView):
             msg = f"Could not find config entry for identifier: {identifier.config_entry_id}"
             _LOGGER.error(msg)
             return Response(status=400, text=msg)
-        sn: Supernote = entry.runtime_data
+        sn: Supernote = entry.runtime_data.client
 
         try:
             folder_contents = await sn.device.list_folder(
@@ -324,7 +324,7 @@ class SupernoteCloudMediaSource(MediaSource):
 
         entry = self._async_config_entry(identifier.config_entry_id)
         entry_unique_id = cast(str, entry.unique_id)
-        sn: Supernote = entry.runtime_data
+        sn: Supernote = entry.runtime_data.client
         if identifier.id_type == SupernoteIdentifierType.FOLDER:
             if identifier.parent_folder_id is None:
                 # This is the root folder for the account

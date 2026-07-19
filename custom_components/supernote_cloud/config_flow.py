@@ -21,7 +21,6 @@ from homeassistant.config_entries import (
     ConfigFlow,
     ConfigFlowResult,
     SOURCE_REAUTH,
-    ConfigEntry,
     OptionsFlow,
 )
 from homeassistant.helpers import selector
@@ -47,6 +46,7 @@ from .const import (
     CONF_HOST,
     DEFAULT_HOST,
 )
+from .types import SupernoteCloudConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ class SupernoteCloudConfigFlowHandler(ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(
-        config_entry: ConfigEntry,
+        config_entry: SupernoteCloudConfigEntry,
     ) -> OptionsFlow:
         """Create the options flow."""
         return SchemaOptionsFlowHandler(config_entry, OPTIONS_FLOW)

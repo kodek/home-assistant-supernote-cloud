@@ -12,6 +12,8 @@ from pytest_homeassistant_custom_component.common import (
 
 from supernote.client.exceptions import UnauthorizedException
 from custom_components.supernote_cloud.const import DOMAIN
+from homeassistant.components.media_source.helper import async_browse_media
+from homeassistant.components.media_player.errors import BrowseError
 
 
 from homeassistant.const import (
@@ -49,8 +51,6 @@ async def test_api_unauthorized_triggers_reauth(
     mock_supernote: MagicMock,
 ) -> None:
     """Test that an UnauthorizedException during API calls triggers reauth."""
-    from homeassistant.components.media_source.helper import async_browse_media
-    from homeassistant.components.media_player.errors import BrowseError
 
     # Configure the mock to raise UnauthorizedException during folder browse
     mock_supernote.web.list_query.side_effect = UnauthorizedException("Unauthorized")

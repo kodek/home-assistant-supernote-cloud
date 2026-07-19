@@ -2,16 +2,16 @@
 
 from supernote.client.api import Supernote
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import aiohttp_client
 
 from .auth import ConfigEntryAuth
 from .const import CONF_HOST, DEFAULT_HOST
+from .types import SupernoteCloudConfigEntry
 
 
 async def async_get_supernote_client(
-    hass: HomeAssistant, entry: ConfigEntry
+    hass: HomeAssistant, entry: SupernoteCloudConfigEntry
 ) -> Supernote:
     """Get an authenticated Supernote API client."""
     session = aiohttp_client.async_get_clientsession(hass)

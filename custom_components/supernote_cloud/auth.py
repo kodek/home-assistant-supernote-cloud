@@ -12,12 +12,12 @@ from supernote.client.client import Client
 from supernote.client.exceptions import SupernoteException, UnauthorizedException
 
 from homeassistant.core import HomeAssistant
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ACCESS_TOKEN, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.exceptions import HomeAssistantError, ConfigEntryAuthFailed
 from homeassistant.util import dt as dt_util
 
 from .const import CONF_TOKEN_TIMESTAMP, TOKEN_LIFETIME, CONF_HOST, DEFAULT_HOST
+from .types import SupernoteCloudConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,10 +25,12 @@ _LOGGER = logging.getLogger(__name__)
 class ConfigEntryAuth(AbstractAuth):
     """Config entry auth."""
 
+    _entry: SupernoteCloudConfigEntry
+
     def __init__(
         self,
         hass: HomeAssistant,
-        entry: ConfigEntry,
+        entry: SupernoteCloudConfigEntry,
         session: aiohttp.ClientSession,
     ) -> None:
         """Initialize the auth."""
