@@ -114,6 +114,7 @@ def mock_supernote_fixture() -> Generator[AsyncMock, None, None]:
         mock_sn.device.get_capacity = AsyncMock()
         mock_sn.device.list_folder = AsyncMock()
         mock_sn.client.get_content = AsyncMock()
+        mock_sn.client.request = AsyncMock()
 
         # Class methods
         mock_sn_cls.login = AsyncMock(return_value=mock_sn)

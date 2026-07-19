@@ -8,7 +8,7 @@ import logging
 from typing import Self, cast
 
 from supernote.client.api import Supernote
-from supernote.client.exceptions import ApiException
+from supernote.client.exceptions import ApiException, UnauthorizedException
 from supernote.models.base import BooleanEnum
 from aiohttp.web import Response, Request, StreamResponse
 
@@ -192,6 +192,10 @@ class ItemContentView(HomeAssistantView):
             folder_contents = await sn.device.list_folder(
                 folder_id=identifier.parent_folder_id
             )
+        except UnauthorizedException as err:
+            _LOGGER.error("Authentication failed during folder list: %s", err)
+            entry.async_start_reauth(self.hass)
+            return Response(status=401, text=str(err))
         except ApiException as err:
             _LOGGER.error("Failed to fetch folder contents: %s", err)
             return Response(status=500, text=str(err))
@@ -230,6 +234,10 @@ class ItemContentView(HomeAssistantView):
 
             content = await sn.client.get_content(page_vo.url)
             return Response(body=content, content_type="image/png")
+        except UnauthorizedException as err:
+            _LOGGER.error("Authentication failed during note download: %s", err)
+            entry.async_start_reauth(self.hass)
+            return Response(status=401, text=str(err))
         except ApiException as err:
             _LOGGER.error("Failed to fetch note content: %s", err)
             return Response(status=500, text=str(err))
@@ -262,6 +270,21 @@ class SupernoteCloudMediaSource(MediaSource):
         )
 
     async def async_browse_media(self, item: MediaSourceItem) -> BrowseMediaSource:
+        """Return details about the media source."""
+        try:
+            return await self._async_browse_media(item)
+        except UnauthorizedException as err:
+            _LOGGER.error("Authentication failed: %s", err)
+            if item.identifier:
+                try:
+                    identifier = SupernoteIdentifier.of(item.identifier)
+                    entry = self._async_config_entry(identifier.config_entry_id)
+                    entry.async_start_reauth(self.hass)
+                except Exception:
+                    pass
+            raise BrowseError("Authentication failed") from err
+
+    async def _async_browse_media(self, item: MediaSourceItem) -> BrowseMediaSource:
         """Return details about the media source.
 
         This renders the multi-level album structure for an account, its folders,
@@ -315,6 +338,8 @@ class SupernoteCloudMediaSource(MediaSource):
                         if path_info.path
                         else f"Folder {identifier.media_id}"
                     )
+                except UnauthorizedException:
+                    raise
                 except ApiException:
                     name = f"Folder {identifier.media_id}"
 
@@ -329,6 +354,8 @@ class SupernoteCloudMediaSource(MediaSource):
                 folder_contents_vo = await sn.web.list_query(
                     directory_id=identifier.media_id, page_size=100
                 )
+            except UnauthorizedException:
+                raise
             except ApiException as err:
                 raise BrowseError(f"Failed to fetch folder contents: {err}") from err
 
@@ -373,6 +400,8 @@ class SupernoteCloudMediaSource(MediaSource):
             parent_folder_contents_vo = await sn.web.list_query(
                 directory_id=identifier.parent_folder_id, page_size=100
             )
+        except UnauthorizedException:
+            raise
         except ApiException as err:
             raise BrowseError(f"Failed to fetch parent folder contents: {err}") from err
 
@@ -399,6 +428,8 @@ class SupernoteCloudMediaSource(MediaSource):
             # PngPageVO has url.
             page_count = len(conversion_res.png_page_vo_list)
             page_names = [f"Page {i + 1}" for i in range(page_count)]
+        except UnauthorizedException:
+            raise
         except ApiException as err:
             raise BrowseError(f"Failed to get note info: {err}") from err
         _LOGGER.debug("Note has %s pages", len(page_names))

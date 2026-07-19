@@ -9,7 +9,7 @@ import aiohttp
 from supernote.client.auth import AbstractAuth
 from supernote.client.login_client import LoginClient
 from supernote.client.client import Client
-from supernote.client.exceptions import SupernoteException
+from supernote.client.exceptions import SupernoteException, UnauthorizedException
 
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
@@ -38,9 +38,9 @@ class ConfigEntryAuth(AbstractAuth):
         host = entry.options.get(CONF_HOST, DEFAULT_HOST)
         self._login_client = LoginClient(Client(session, host=host))
 
-    async def async_get_access_token(self) -> str:
+    async def async_get_access_token(self, force_refresh: bool = False) -> str:
         """Return a valid access token."""
-        if self.is_expired():
+        if force_refresh or self.is_expired():
             await self._refresh_access_token()
         return cast(str, self._entry.options[CONF_ACCESS_TOKEN])
 
@@ -61,6 +61,10 @@ class ConfigEntryAuth(AbstractAuth):
             new_token = await self._login_client.login(
                 self._entry.options[CONF_USERNAME], self._entry.options[CONF_PASSWORD]
             )
+        except UnauthorizedException as err:
+            _LOGGER.debug("Login unauthorized: %s", err)
+            self._entry.async_start_reauth(self._hass)
+            raise ConfigEntryAuthFailed("Invalid credentials") from err
         except SupernoteException as err:
             _LOGGER.debug("Login api exception: %s", err)
             if "verification code" in str(err):

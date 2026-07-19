@@ -45,6 +45,7 @@ from .const import (
     CONF_API_USERNAME,
     CONF_TOKEN_TIMESTAMP,
     CONF_HOST,
+    DEFAULT_HOST,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -110,10 +111,16 @@ class SupernoteCloudConfigFlowHandler(ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_HOST): selector.TextSelector(
+                    vol.Required(
+                        CONF_HOST,
+                        default=self._host or DEFAULT_HOST,
+                    ): selector.TextSelector(
                         selector.TextSelectorConfig(),
                     ),
-                    vol.Required(CONF_USERNAME): selector.TextSelector(
+                    vol.Required(
+                        CONF_USERNAME,
+                        default=self._username or "",
+                    ): selector.TextSelector(
                         selector.TextSelectorConfig(),
                     ),
                     vol.Required(CONF_PASSWORD): selector.TextSelector(
@@ -219,6 +226,12 @@ class SupernoteCloudConfigFlowHandler(ConfigFlow, domain=DOMAIN):
         self, entry_data: Mapping[str, Any]
     ) -> ConfigFlowResult:
         """Perform reauth upon an API authentication error."""
+        reauth_entry = self.hass.config_entries.async_get_entry(
+            self.context["entry_id"]
+        )
+        if reauth_entry:
+            self._host = reauth_entry.options.get(CONF_HOST)
+            self._username = reauth_entry.options.get(CONF_USERNAME)
         return await self.async_step_reauth_confirm()
 
     async def async_step_reauth_confirm(

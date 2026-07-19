@@ -4,16 +4,13 @@ from __future__ import annotations
 
 import logging
 
-from supernote.client.api import Supernote
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import aiohttp_client
 from homeassistant.helpers.typing import ConfigType
 
-from .const import DOMAIN, CONF_HOST, DEFAULT_HOST
-from .auth import ConfigEntryAuth
+from .const import DOMAIN
+from .api import async_get_supernote_client
 from .types import SupernoteCloudConfigEntry
 from .media_source import async_register_http_views
 
@@ -36,12 +33,7 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: SupernoteCloudConfigEntry
 ) -> bool:
     """Set up a config entry."""
-
-    session = aiohttp_client.async_get_clientsession(hass)
-    host = entry.options.get(CONF_HOST, DEFAULT_HOST)
-    auth = ConfigEntryAuth(hass, entry, session)
-    sn = Supernote.from_auth(auth, host=host, session=session)
-
+    sn = await async_get_supernote_client(hass, entry)
     entry.runtime_data = sn
 
     await hass.config_entries.async_forward_entry_setups(
