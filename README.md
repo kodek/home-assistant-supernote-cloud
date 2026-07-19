@@ -39,13 +39,13 @@ Keep track of your cloud account's storage capacity. The integration registers f
 
 ## 🔒 Supported Cloud Options
 
-This component supports the following sync infrastructure options:
+This integration supports any sync server implementing the [OpenAPI Specification](https://github.com/allenporter/supernote/tree/main/api-spec) for the Supernote Private Cloud protocol. Compatible options include:
 
-- **Self-Hosted Server with AI (Recommended)**: Integrates seamlessly with **[allenporter/supernote](https://github.com/allenporter/supernote)**, a lightweight, SQLite-backed private cloud server with built-in Gemini AI features.
+- **Supernote Personal Knowledge Hub (Recommended)**: Pairs with **[allenporter/supernote](https://github.com/allenporter/supernote)**, a self-hosted, SQLite-backed private cloud server with built-in Gemini AI features.
   - **Local Ownership**: Sync your notes directly to a local database running in your home lab, NAS, or private server.
   - **AI Integration**: Unlocks semantic search and note transcription features for LLM tools.
   - **Highly Efficient**: Consumes less than ~200MB of memory at idle.
-- **Generic Private Cloud**: Works with standard implementations of the Supernote Private Cloud protocol (such as the [OpenAPI Specification](https://github.com/allenporter/supernote/tree/main/api-spec) documented in the self-hosted project).
+- **Official Supernote Private Cloud**: Supports Ratta's official [Supernote Private Cloud](https://support.supernote.com/en_US/Whats-New/setting-up-your-own-supernote-private-cloud-beta) sync service.
 
 ---
 
