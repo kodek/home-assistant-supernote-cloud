@@ -11,7 +11,7 @@ It is designed to pair natively with both the official [Supernote Private Cloud]
 
 ## 🌟 Key Features
 
-### 🧠 AI & LLM Assistants (The Novel Layer)
+### 🧠 AI & LLM Assistants
 
 This integration registers custom tools with Home Assistant's LLM engine, enabling conversational agents (such as Google Gemini in Home Assistant) to read, search, and answer questions about your notes.
 
