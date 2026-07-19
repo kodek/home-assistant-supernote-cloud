@@ -1,45 +1,91 @@
-# home-assistant-supernote-cloud
+# Supernote Cloud Integration for Home Assistant
 
-Home Assistant Custom Component for accessing your Supernote Private Cloud instance. This is meant work with the excellent Ratta Supernote products.
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
+[![test_suite](https://github.com/allenporter/home-assistant-supernote-cloud/actions/workflows/test.yaml/badge.svg)](https://github.com/allenporter/home-assistant-supernote-cloud/actions)
 
-This custom component authenticates with your local private cloud server
-and provides access to the contents of your notebooks through the media
-player.
+Bring your Ratta Supernote e-ink tablet into your smart home ecosystem. This integration connects Home Assistant to your **[Self-Hosted Supernote Private Cloud Server](https://github.com/allenporter/supernote)**, allowing you to own your notes, monitor your device cloud capacity, view your notebook pages dynamically, and interact with your handwritten notes using Large Language Models (LLMs) and Home Assistant Assist.
 
-The motivation is to use with [Journal Assistant](https://github.com/allenporter/home-assistant-journal-assistant) and [Supernote LLM](https://github.com/allenporter/supernote-llm/).
+---
 
-## Media Source
+## 🌟 Key Features
 
-Notebooks are exposed as a [Media Source](https://www.home-assistant.io/integrations/media_source/). This can be
-used to browse contents of the notebooks and view notebook pages as `.png` files. The media source
-will query the Supernote Private Cloud API to look for backups and let you
-browse them directly.
+### 🧠 1. AI & LLM Assistants (The Novel Layer)
 
-## Development
+This integration registers custom tools with Home Assistant's LLM engine, enabling conversational agents (such as Google Gemini in Home Assistant) to read, search, and answer questions about your notes.
 
-The client library used for accessing Supernote Contents:
+- **Semantic Search (`search_supernote`)**: Allows LLMs to search for concepts across your handwritten notebook library using vector similarity search.
+- **Notebook Transcripts (`get_supernote_transcript`)**: Exposes the text transcript of any notebook or journal to the model.
+- **Companion Integrations**: Pairs perfectly with **[Journal Assistant](https://github.com/allenporter/home-assistant-journal-assistant)** and **[Supernote LLM](https://github.com/allenporter/supernote-llm/)** to convert handwritten bullet journals into structured calendar events and PKM insights.
 
-- http://github.com/allenporter/supernote-lite/
+### 🖼️ 2. Dynamic Notebook Rendering (Media Source)
 
-With prior art from these libraries:
+Exposes your notebook library via Home Assistant's native **Media Browser**.
 
-- https://github.com/bwhitman/supernote-cloud-python/
-- https://github.com/adrianba/supernote-cloud-api/
-- https://github.com/colingourlay/supernote-cloud-api/
+- Browse folders and files synced from your tablet.
+- View notebook pages rendered dynamically on-the-fly as `.png` images directly in the Home Assistant UI or cast them to media players.
 
-## Local Development
+### 📊 3. Storage Capacity Sensors
+
+Keep track of your cloud server's storage capacity. The integration registers four sensors polled automatically every 30 minutes:
+
+- **Storage Used** (in GB)
+- **Storage Total** (in GB)
+- **Storage Free** (in GB)
+- **Storage Usage Ratio** (in %)
+
+---
+
+## 🔒 Own Your Data: Self-Hosted Private Cloud
+
+This component is designed to work with **[allenporter/supernote](https://github.com/allenporter/supernote)**, a lightweight, self-hosted implementation of the Supernote Private Cloud protocol.
+
+- **Privacy-First**: No data is leaked to external corporate clouds. Your notes sync directly to a SQLite database running in your home lab or NAS.
+- **Highly Efficient**: Consumes less than ~200MB of memory at idle, making it perfect for running on a low-power home server.
+
+---
+
+## 🚀 Getting Started
+
+### 1. Installation via HACS
+
+1. Open **HACS** in Home Assistant.
+2. Click the three dots in the top right and select **Custom repositories**.
+3. Add `https://github.com/allenporter/home-assistant-supernote-cloud` with category **Integration**.
+4. Click **Download**.
+5. Restart Home Assistant.
+
+### 2. Configuration
+
+1. Go to **Settings** -> **Devices & Services** -> **Add Integration**.
+2. Search for **Supernote Cloud**.
+3. Enter your **Supernote Private Cloud URL** (the URL of your self-hosted server), your username/phone number, and your password.
+4. Follow the setup flow (including entering the SMS verification code if applicable).
+
+---
+
+## 🛠️ Local Development
 
 ### Pre-requisites
+
+Set up the python virtual environment and bootstrap development scripts:
 
 ```bash
 $ script/bootstrap
 $ script/setup
 ```
 
-### Run Home Assistant
+### Running the Dev Server
 
-From then on run home assistant:
+Launch Home Assistant locally with the custom component loaded:
 
 ```bash
 $ script/server
+```
+
+### Running Tests
+
+We use `pytest` for unit testing. Run the test suite:
+
+```bash
+$ .venv/bin/pytest
 ```
