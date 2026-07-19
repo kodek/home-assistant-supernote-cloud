@@ -5,7 +5,7 @@
 
 Bring your Ratta Supernote e-ink tablet into your smart home ecosystem. This integration connects Home Assistant to a **Supernote Private Cloud**, allowing you to monitor device storage capacity, browse notebook pages dynamically, and interact with your handwritten notes using Large Language Models (LLMs) and Home Assistant Assist.
 
-It is designed to pair natively with **[allenporter/supernote](https://github.com/allenporter/supernote)**, a self-hosted private cloud server with built-in AI features (such as notebook transcription and semantic search).
+It is designed to pair natively with both the official [Supernote Private Cloud](https://support.supernote.com/en_US/Whats-New/setting-up-your-own-supernote-private-cloud-beta) and your own self-hosted **[Supernote Personal Knowledge Hub](https://github.com/allenporter/supernote)** with built-in AI features (such as notebook transcription and semantic search).
 
 ---
 
