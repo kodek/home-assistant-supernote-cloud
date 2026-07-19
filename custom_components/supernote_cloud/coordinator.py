@@ -3,7 +3,6 @@
 from datetime import timedelta
 import logging
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from supernote.client.api import Supernote
@@ -11,6 +10,7 @@ from supernote.client.exceptions import ApiException
 from supernote.models.file_device import CapacityLocalVO
 
 from .const import DOMAIN
+from .types import SupernoteCloudConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,10 +22,12 @@ UPDATE_INTERVAL = timedelta(minutes=30)
 class SupernoteStorageCoordinator(DataUpdateCoordinator[CapacityLocalVO]):
     """Class to manage fetching storage capacity from Supernote Cloud API."""
 
+    entry: SupernoteCloudConfigEntry
+
     def __init__(
         self,
         hass: HomeAssistant,
-        entry: ConfigEntry,
+        entry: SupernoteCloudConfigEntry,
         client: Supernote,
     ) -> None:
         """Initialize the coordinator."""

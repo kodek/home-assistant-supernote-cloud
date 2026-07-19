@@ -11,7 +11,6 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfInformation
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntryType
@@ -22,6 +21,7 @@ from supernote.models.file_device import CapacityLocalVO
 
 from .const import DOMAIN
 from .coordinator import SupernoteStorageCoordinator
+from .types import SupernoteCloudConfigEntry
 
 # Constants for conversions
 BYTES_TO_GB = 1024 * 1024 * 1024
@@ -87,7 +87,7 @@ STORAGE_SENSORS: tuple[SupernoteSensorEntityDescription, ...] = (
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: SupernoteCloudConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Supernote Cloud sensors from a config entry."""
