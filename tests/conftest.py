@@ -1,3 +1,7 @@
+import sys
+
+from supernote.models.file_device import AllocationVO, CapacityLocalVO
+
 """Fixtures for the custom component."""
 
 import logging
@@ -89,8 +93,6 @@ async def mock_config_entry(
 def mock_supernote_fixture() -> Generator[AsyncMock]:
     """Mock the Supernote client."""
     # Force reload of the component modules to ensure they pick up the patch
-    import sys  # noqa: PLC0415
-
     for module in list(sys.modules.keys()):
         if module.startswith("custom_components.supernote_cloud"):
             del sys.modules[module]
@@ -106,11 +108,6 @@ def mock_supernote_fixture() -> Generator[AsyncMock]:
         mock_sn.web.list_query = AsyncMock()
         mock_sn.web.path_query = AsyncMock()
         mock_sn.web.query_user = AsyncMock()
-
-        from supernote.models.file_device import (  # noqa: PLC0415
-            AllocationVO,
-            CapacityLocalVO,
-        )
 
         mock_sn.device.note_to_png = AsyncMock()
         mock_sn.device.get_note_png_pages = AsyncMock()
